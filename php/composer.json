@@ -1,0 +1,19 @@
+{
+    "name": "nkoll/plox",
+    "description": "Simple Interpreter for the Lox language",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "Nkoll\\Plox\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Niklas Koll",
+            "email": "nikkol567@gmail.com"
+        }
+    ],
+    "require": {
+        "symfony/console": "^7.1"
+    }
+}
