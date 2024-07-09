@@ -1,4 +1,4 @@
-# Lox Interpreter written in PHP
+# PLox Lox Interpreter written in PHP
 
 The first complete Interpreter for a language called 'Lox' is written in PHP.
 
