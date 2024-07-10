@@ -19,6 +19,7 @@ use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
 use Nkoll\Plox\Lox\Stmt\StmtVisitor;
 use Nkoll\Plox\Lox\Stmt\VarStmt;
+use Nkoll\Plox\Lox\Stmt\WhileStmt;
 use Nkoll\Plox\PloxCommand;
 
 class Interpreter implements ExprVisitor, StmtVisitor
@@ -99,6 +100,12 @@ class Interpreter implements ExprVisitor, StmtVisitor
         }
 
         $this->environment->define($stmt->name->lexeme, $value);
+    }
+
+    public function visitWhileStmt(WhileStmt $stmt) { 
+        while($this->evaluate($stmt->condition)) {
+            $this->execute($stmt->body);
+        }
     }
 
     public function visitExpressionStmt(ExpressionStmt $stmt)
