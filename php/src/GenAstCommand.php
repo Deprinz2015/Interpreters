@@ -15,10 +15,12 @@ class GenAstCommand extends Command
             "Grouping : Expr expression",
             "Literal  : mixed value",
             "Unary    : Token operator, Expr right",
+            "Variable : Token name",
         ],
         "Stmt" => [
             "Expression : Expr expression",
             "Print      : Expr expression",
+            "Var        : Token name, ?Expr initializer",
         ],
     ];
 
@@ -103,7 +105,9 @@ interface {$basename}Visitor
 
         $neededTypes = [];
         $fields = array_map(function ($field) use (&$neededTypes, $basename) {
-            [$type, $name] = explode(' ', $field);
+            [$typeDef, $name] = explode(' ', $field);
+            $nullable = str_starts_with($typeDef, '?');
+            $type = $nullable ? substr($typeDef, 1) : $typeDef;
             if (ctype_upper($type[0]) && $type !== $basename) {
                 $import = $type;
                 if (in_array($type, array_keys(self::asts))) {
@@ -111,7 +115,7 @@ interface {$basename}Visitor
                 }
                 $neededTypes[] = $import;
             }
-            return "        public $type \$$name,";
+            return "        public $typeDef \$$name,";
         }, $fields);
         $fields = implode(PHP_EOL, $fields);
         $neededTypes = array_unique($neededTypes);

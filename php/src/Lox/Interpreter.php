@@ -9,14 +9,23 @@ use Nkoll\Plox\Lox\Expr\ExprVisitor;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
+use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
 use Nkoll\Plox\Lox\Stmt\StmtVisitor;
+use Nkoll\Plox\Lox\Stmt\VarStmt;
 use Nkoll\Plox\PloxCommand;
 
 class Interpreter implements ExprVisitor, StmtVisitor
 {
+    private Environment $environment;
+
+    public function __construct()
+    {
+        $this->environment = new Environment();
+    }
+
     /**
      * @param Stmt[] $statements
      * @return void
@@ -63,6 +72,16 @@ class Interpreter implements ExprVisitor, StmtVisitor
         return $expr->accept($this);
     }
 
+    public function visitVarStmt(VarStmt $stmt)
+    {
+        $value = null;
+        if ($stmt->initializer !== null) {
+            $value = $this->evaluate($stmt->initializer);
+        }
+
+        $this->environment->define($stmt->name->lexeme, $value);
+    }
+
     public function visitExpressionStmt(ExpressionStmt $stmt)
     {
         $this->evaluate($stmt->expression);
@@ -72,6 +91,11 @@ class Interpreter implements ExprVisitor, StmtVisitor
     {
         echo $this->stringify($this->evaluate($stmt->expression));
         echo PHP_EOL;
+    }
+
+    public function visitVariableExpr(VariableExpr $expr)
+    {
+        return $this->environment->get($expr->name);
     }
 
     public function visitBinaryExpr(BinaryExpr $expr)

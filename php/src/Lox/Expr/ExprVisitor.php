@@ -8,4 +8,5 @@ interface ExprVisitor
     public function visitGroupingExpr(GroupingExpr $expr);
     public function visitLiteralExpr(LiteralExpr $expr);
     public function visitUnaryExpr(UnaryExpr $expr);
+    public function visitVariableExpr(VariableExpr $expr);
 }

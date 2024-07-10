@@ -9,8 +9,10 @@ use Nkoll\Plox\Lox\Expr\Expr;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
+use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\PrintStmt;
+use Nkoll\Plox\Lox\Stmt\VarStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
 
 class Parser
@@ -30,12 +32,37 @@ class Parser
 
             $stmts = [];
             while(!$this->isAtEnd()) {
-                $stmts[] = $this->statement();
+                $stmts[] = $this->declaration();
             }
             return $stmts;
         } catch (ParserError) {
             return null;
         }
+    }
+
+    private function declaration(): Stmt {
+        try {
+            if ($this->match(TokenType::VAR)) {
+                return $this->varDeclaration();
+            }
+
+            return $this->statement();
+        } catch (ParserError) {
+            $this->synchronize();
+            return null;
+        }
+    }
+
+    private function varDeclaration(): Stmt {
+        $name = $this->consume(TokenType::IDENTIFIER, "Expect variable name.");
+
+        $initializer = null;
+        if ($this->match(TokenType::EQUAL)){
+            $initializer = $this->expression();
+        }
+
+        $this->consume(TokenType::SEMICOLON, "Expect ';' after variable declaration.");
+        return new VarStmt($name, $initializer);
     }
 
     private function statement(): Stmt
@@ -141,6 +168,10 @@ class Parser
 
         if ($this->match(TokenType::NUMBER, TokenType::STRING)) {
             return new LiteralExpr($this->previous()->literal);
+        }
+
+        if ($this->match(TokenType::IDENTIFIER)) {
+            return new VariableExpr($this->previous());
         }
 
         if ($this->match(TokenType::LEFT_PAREN)) {
