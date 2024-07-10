@@ -6,6 +6,7 @@ use Nkoll\Plox\PloxCommand;
 use Nkoll\Plox\Lox\Error\ParserError;
 use Nkoll\Plox\Lox\Expr\AssignExpr;
 use Nkoll\Plox\Lox\Expr\BinaryExpr;
+use Nkoll\Plox\Lox\Expr\CallExpr;
 use Nkoll\Plox\Lox\Expr\Expr;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
@@ -14,6 +15,7 @@ use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
+use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 use Nkoll\Plox\Lox\Stmt\IfStmt;
 use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\VarStmt;
@@ -47,6 +49,9 @@ class Parser
     private function declaration(): Stmt
     {
         try {
+            if ($this->match(TokenType::FUN)) {
+                return $this->function("function");
+            }
             if ($this->match(TokenType::VAR)) {
                 return $this->varDeclaration();
             }
@@ -177,6 +182,27 @@ class Parser
         return new ExpressionStmt($expr);
     }
 
+    private function function(string $kind): Stmt {
+        $name = $this->consume(TokenType::IDENTIFIER, "Expect $kind name.");
+        $this->consume(TokenType::LEFT_PAREN, "Expect '(' after $kind name.");
+        $params = [];
+        if (!$this->check(TokenType::RIGHT_PAREN)) {
+            do {
+                if (count($params) >= 255) {
+                    $this->error($this->peek(), "Can't have more than 255 parameters.");
+                }
+
+                $params[] = $this->consume(TokenType::IDENTIFIER, "Expect parameter name.");
+            } while($this->match(TokenType::COMMA));
+        }
+
+        $this->consume(TokenType::RIGHT_PAREN, "Expect ')' after parameters.");
+
+        $this->consume(TokenType::RIGHT_BRACE, "Expect '{' before $kind body.");
+        $body = $this->block();
+        return new FunctionStmt($name, $params, $body);
+    }
+
     /** @return Stmt[]  */
     private function block(): array
     {
@@ -298,7 +324,38 @@ class Parser
             return new UnaryExpr($this->previous(), $this->unary());
         }
 
-        return $this->primary();
+        return $this->call();
+    }
+
+    private function finishCall(Expr $callee): Expr {
+        $args = [];
+
+        if(!$this->check(TokenType::RIGHT_PAREN)) {
+            do {
+                if (count($args) >= 255) {
+                    $this->error($this->peek(), "Can't have more than 255 arguments.");
+                }
+                $args[] = $this->expression();
+            } while($this->match(TokenType::COMMA));
+        }
+
+        $paren = $this->consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments.");
+
+        return new CallExpr($callee, $paren, $args);
+    }
+
+    private function call(): Expr {
+        $expr = $this->primary();
+
+        while(true) {
+            if ($this->match(TokenType::LEFT_PAREN)) {
+                $expr = $this->finishCall($expr);
+            } else {
+                break;
+            }
+        }
+
+        return $expr;
     }
 
     private function primary(): Expr

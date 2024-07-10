@@ -5,6 +5,7 @@ namespace Nkoll\Plox\Lox;
 use Nkoll\Plox\Lox\Error\RuntimeError;
 use Nkoll\Plox\Lox\Expr\AssignExpr;
 use Nkoll\Plox\Lox\Expr\BinaryExpr;
+use Nkoll\Plox\Lox\Expr\CallExpr;
 use Nkoll\Plox\Lox\Expr\Expr;
 use Nkoll\Plox\Lox\Expr\ExprVisitor;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
@@ -25,10 +26,29 @@ use Nkoll\Plox\PloxCommand;
 class Interpreter implements ExprVisitor, StmtVisitor
 {
     private Environment $environment;
+    private Environment $globals;
 
     public function __construct()
     {
-        $this->environment = new Environment();
+        $this->globals = new Environment();
+        $this->environment = $this->globals;
+
+        $this->globals->define("clock", new class implements LoxCallable {
+            public function arity(): int
+            {
+                return 0;
+            }
+
+            public function call(Interpreter $interpreter, array $arguments)
+            {
+                return time();
+            }
+
+            public function __toString()
+            {
+                return "<native fn>";
+            }
+        });
     }
 
     /**
@@ -192,6 +212,24 @@ class Interpreter implements ExprVisitor, StmtVisitor
                 $this->checkNumberOperands($expr->operator, $left, $right);
                 return (float)$left * (float)$right;
         }
+    }
+
+    public function visitCallExpr(CallExpr $expr) { 
+        $callee = $this->evaluate($expr->callee);
+
+        $args = [];
+        foreach($expr->arguments as $argument) {
+            $args[] = $this->evaluate($argument);
+        }
+
+        if(!$callee instanceof LoxCallable) {
+            throw new RuntimeError($expr->paren, "Can only call functions and classes.");
+        }
+        $argCount = count($args);
+        if ($argCount !== $callee->arity()) {
+            throw new RuntimeError($expr->paren, "Expected {$callee->arity()} arguments but got $argCount.");
+        }
+        return $callee->call($this, $args);
     }
 
     public function visitGroupingExpr(GroupingExpr $expr)

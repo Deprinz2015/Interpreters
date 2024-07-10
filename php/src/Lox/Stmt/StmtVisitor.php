@@ -6,6 +6,7 @@ interface StmtVisitor
 {
     public function visitBlockStmt(BlockStmt $stmt);
     public function visitExpressionStmt(ExpressionStmt $stmt);
+    public function visitFunctionStmt(FunctionStmt $stmt);
     public function visitIfStmt(IfStmt $stmt);
     public function visitPrintStmt(PrintStmt $stmt);
     public function visitVarStmt(VarStmt $stmt);
