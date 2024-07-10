@@ -1,0 +1,16 @@
+print "Logical:";
+print "hi" or 2; // "hi".
+print nil or "yes"; // "yes".
+print "";
+
+print "If:";
+if (1 == 2) {
+    print "impossible";
+}
+else {
+    print "not equal";
+}
+
+if (true) {
+    print "Weird if not printed";
+}
