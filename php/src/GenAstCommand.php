@@ -11,6 +11,7 @@ class GenAstCommand extends Command
 {
     private const asts = [
         "Expr" => [
+            "Assign   : Token name, Expr value",
             "Binary   : Expr left, Token operator, Expr right",
             "Grouping : Expr expression",
             "Literal  : mixed value",
@@ -18,6 +19,7 @@ class GenAstCommand extends Command
             "Variable : Token name",
         ],
         "Stmt" => [
+            "Block      : Stmt[] statements",
             "Expression : Expr expression",
             "Print      : Expr expression",
             "Var        : Token name, ?Expr initializer",
@@ -99,15 +101,32 @@ interface {$basename}Visitor
         file_put_contents($path, $content);
     }
 
+    /**
+     * @param string $outputDir 
+     * @param string $basename 
+     * @param string $classname 
+     * @param string $fields 
+     * @return void 
+     */
     private function defineType(string $outputDir, string $basename, string $classname, string $fields): void
     {
         $fields = explode(', ', $fields);
 
         $neededTypes = [];
-        $fields = array_map(function ($field) use (&$neededTypes, $basename) {
+        $typeHints = [];
+        $fields = array_map(function ($field) use (&$neededTypes, &$typeHints, $basename) {
             [$typeDef, $name] = explode(' ', $field);
+            $typeHints[] = "     * @param $typeDef \$$name";
+
             $nullable = str_starts_with($typeDef, '?');
+            $array = str_ends_with($typeDef, '[]');
+
             $type = $nullable ? substr($typeDef, 1) : $typeDef;
+            if ($array) {
+                $type = $array ? substr($type, 0, strlen($type) - 2) : $type;
+                $typeDef = 'array';
+            }
+
             if (ctype_upper($type[0]) && $type !== $basename) {
                 $import = $type;
                 if (in_array($type, array_keys(self::asts))) {
@@ -115,6 +134,7 @@ interface {$basename}Visitor
                 }
                 $neededTypes[] = $import;
             }
+
             return "        public $typeDef \$$name,";
         }, $fields);
         $fields = implode(PHP_EOL, $fields);
@@ -124,6 +144,8 @@ interface {$basename}Visitor
             return "use Nkoll\Plox\Lox\\$type;";
         }, $neededTypes);
         $neededTypes = implode(PHP_EOL, $neededTypes);
+        $typeHints = implode(PHP_EOL, $typeHints);
+        $typeHints = "/**\n$typeHints\n     */";
         if ($neededTypes !== "") {
             $neededTypes = "\n$neededTypes\n";
         }
@@ -136,6 +158,7 @@ namespace Nkoll\Plox\Lox\\$basename;
 $neededTypes
 class $classname$basename extends $basename
 {
+    $typeHints
     public function __construct(
 $fields
     ) { }

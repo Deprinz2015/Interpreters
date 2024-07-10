@@ -6,6 +6,11 @@ use Nkoll\Plox\Lox\Token;
 
 class BinaryExpr extends Expr
 {
+    /**
+     * @param Expr $left
+     * @param Token $operator
+     * @param Expr $right
+     */
     public function __construct(
         public Expr $left,
         public Token $operator,

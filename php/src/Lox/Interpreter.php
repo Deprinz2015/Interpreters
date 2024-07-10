@@ -3,6 +3,7 @@
 namespace Nkoll\Plox\Lox;
 
 use Nkoll\Plox\Lox\Error\RuntimeError;
+use Nkoll\Plox\Lox\Expr\AssignExpr;
 use Nkoll\Plox\Lox\Expr\BinaryExpr;
 use Nkoll\Plox\Lox\Expr\Expr;
 use Nkoll\Plox\Lox\Expr\ExprVisitor;
@@ -10,6 +11,7 @@ use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
+use Nkoll\Plox\Lox\Stmt\BlockStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
@@ -67,6 +69,21 @@ class Interpreter implements ExprVisitor, StmtVisitor
         $stmt->accept($this);
     }
 
+    private function executeBlock(array $statements, Environment $env)
+    {
+        $previous = $this->environment;
+
+        try {
+            $this->environment = $env;
+
+            foreach($statements as $stmt) {
+                $this->execute($stmt);
+            }
+        } finally {
+            $this->environment = $previous;
+        }
+    }
+
     private function evaluate(Expr $expr)
     {
         return $expr->accept($this);
@@ -91,6 +108,18 @@ class Interpreter implements ExprVisitor, StmtVisitor
     {
         echo $this->stringify($this->evaluate($stmt->expression));
         echo PHP_EOL;
+    }
+
+    public function visitBlockStmt(BlockStmt $stmt)
+    {
+        $this->executeBlock($stmt->statements, new Environment($this->environment));
+    }
+
+    public function visitAssignExpr(AssignExpr $expr)
+    {
+        $value = $this->evaluate($expr->value);
+        $this->environment->assign($expr->name, $value);
+        return $value;
     }
 
     public function visitVariableExpr(VariableExpr $expr)

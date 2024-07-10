@@ -4,6 +4,9 @@ namespace Nkoll\Plox\Lox\Expr;
 
 class GroupingExpr extends Expr
 {
+    /**
+     * @param Expr $expression
+     */
     public function __construct(
         public Expr $expression,
     ) { }

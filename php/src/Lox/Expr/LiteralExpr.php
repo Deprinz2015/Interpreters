@@ -4,6 +4,9 @@ namespace Nkoll\Plox\Lox\Expr;
 
 class LiteralExpr extends Expr
 {
+    /**
+     * @param mixed $value
+     */
     public function __construct(
         public mixed $value,
     ) { }

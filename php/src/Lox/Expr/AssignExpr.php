@@ -4,17 +4,19 @@ namespace Nkoll\Plox\Lox\Expr;
 
 use Nkoll\Plox\Lox\Token;
 
-class VariableExpr extends Expr
+class AssignExpr extends Expr
 {
     /**
      * @param Token $name
+     * @param Expr $value
      */
     public function __construct(
         public Token $name,
+        public Expr $value,
     ) { }
 
     public function accept(ExprVisitor $visitor)
     {
-        return $visitor->visitVariableExpr($this);
+        return $visitor->visitAssignExpr($this);
     }
 }

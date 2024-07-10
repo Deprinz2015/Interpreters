@@ -4,12 +4,14 @@ namespace Nkoll\Plox\Lox;
 
 use Nkoll\Plox\PloxCommand;
 use Nkoll\Plox\Lox\Error\ParserError;
+use Nkoll\Plox\Lox\Expr\AssignExpr;
 use Nkoll\Plox\Lox\Expr\BinaryExpr;
 use Nkoll\Plox\Lox\Expr\Expr;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
+use Nkoll\Plox\Lox\Stmt\BlockStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\VarStmt;
@@ -29,7 +31,6 @@ class Parser
     public function parse(): ?array
     {
         try {
-
             $stmts = [];
             while(!$this->isAtEnd()) {
                 $stmts[] = $this->declaration();
@@ -40,7 +41,8 @@ class Parser
         }
     }
 
-    private function declaration(): Stmt {
+    private function declaration(): Stmt
+    {
         try {
             if ($this->match(TokenType::VAR)) {
                 return $this->varDeclaration();
@@ -53,11 +55,12 @@ class Parser
         }
     }
 
-    private function varDeclaration(): Stmt {
+    private function varDeclaration(): Stmt
+    {
         $name = $this->consume(TokenType::IDENTIFIER, "Expect variable name.");
 
         $initializer = null;
-        if ($this->match(TokenType::EQUAL)){
+        if ($this->match(TokenType::EQUAL)) {
             $initializer = $this->expression();
         }
 
@@ -69,6 +72,10 @@ class Parser
     {
         if($this->match(TokenType::PRINT)) {
             return $this->printStatement();
+        }
+
+        if ($this->match(TokenType::LEFT_BRACE)) {
+            return new BlockStmt($this->block());
         }
 
         return $this->expressionStatement();
@@ -88,9 +95,40 @@ class Parser
         return new ExpressionStmt($expr);
     }
 
+    /** @return Stmt[]  */
+    private function block(): array {
+        $stmts = [];
+
+        while (!$this->check(TokenType::RIGHT_BRACE) && !$this->isAtEnd()) {
+            $stmts[] = $this->declaration();
+        }
+
+        $this->consume(TokenType::RIGHT_BRACE, "Expect '}' after block.");
+        return $stmts;
+    }
+
     private function expression(): Expr
     {
-        return $this->equality();
+        return $this->assignment();
+    }
+
+    private function assignment(): Expr
+    {
+        $expr = $this->equality();
+
+        if ($this->match(TokenType::EQUAL)) {
+            $equals = $this->previous();
+            $value = $this->assignment();
+
+            if ($expr instanceof VariableExpr) {
+                $name = $expr->name;
+                return new AssignExpr($name, $value);
+            }
+
+            $this->error($equals, "Invalid assignment target.");
+        }
+
+        return $expr;
     }
 
     private function equality(): Expr
