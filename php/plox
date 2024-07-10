@@ -3,11 +3,15 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
+use Nkoll\Plox\GenAstCommand;
 use Nkoll\Plox\PloxCommand;
 use Symfony\Component\Console\Application;
 
 $ploxCommand = new PloxCommand();
+$astGenCommand = new GenAstCommand();
+
 $app = new Application('Plox', 'v1.0.0');
 $app->add($ploxCommand);
+$app->add($astGenCommand);
 $app->setDefaultCommand($ploxCommand->getName());
 $app->run();
