@@ -2,7 +2,6 @@
 
 namespace Nkoll\Plox\Lox;
 
-use Nkoll\Plox\PloxCommand;
 use Nkoll\Plox\Lox\Error\ParserError;
 use Nkoll\Plox\Lox\Expr\AssignExpr;
 use Nkoll\Plox\Lox\Expr\BinaryExpr;
@@ -18,9 +17,11 @@ use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 use Nkoll\Plox\Lox\Stmt\IfStmt;
 use Nkoll\Plox\Lox\Stmt\PrintStmt;
-use Nkoll\Plox\Lox\Stmt\VarStmt;
+use Nkoll\Plox\Lox\Stmt\ReturnStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
+use Nkoll\Plox\Lox\Stmt\VarStmt;
 use Nkoll\Plox\Lox\Stmt\WhileStmt;
+use Nkoll\Plox\PloxCommand;
 
 class Parser
 {
@@ -37,9 +38,10 @@ class Parser
     {
         try {
             $stmts = [];
-            while(!$this->isAtEnd()) {
+            while (!$this->isAtEnd()) {
                 $stmts[] = $this->declaration();
             }
+
             return $stmts;
         } catch (ParserError) {
             return null;
@@ -50,7 +52,7 @@ class Parser
     {
         try {
             if ($this->match(TokenType::FUN)) {
-                return $this->function("function");
+                return $this->function('function');
             }
             if ($this->match(TokenType::VAR)) {
                 return $this->varDeclaration();
@@ -59,13 +61,14 @@ class Parser
             return $this->statement();
         } catch (ParserError) {
             $this->synchronize();
+
             return null;
         }
     }
 
     private function varDeclaration(): Stmt
     {
-        $name = $this->consume(TokenType::IDENTIFIER, "Expect variable name.");
+        $name = $this->consume(TokenType::IDENTIFIER, 'Expect variable name.');
 
         $initializer = null;
         if ($this->match(TokenType::EQUAL)) {
@@ -73,6 +76,7 @@ class Parser
         }
 
         $this->consume(TokenType::SEMICOLON, "Expect ';' after variable declaration.");
+
         return new VarStmt($name, $initializer);
     }
 
@@ -90,8 +94,12 @@ class Parser
             return $this->forStatement();
         }
 
-        if($this->match(TokenType::PRINT)) {
+        if ($this->match(TokenType::PRINT)) {
             return $this->printStatement();
+        }
+
+        if ($this->match(TokenType::RETURN)) {
+            return $this->returnStatement();
         }
 
         if ($this->match(TokenType::LEFT_BRACE)) {
@@ -133,7 +141,7 @@ class Parser
         $initializer = null;
         if ($this->match(TokenType::SEMICOLON)) {
             $initializer = null; // skipped
-        } else if ($this->match(TokenType::VAR)) {
+        } elseif ($this->match(TokenType::VAR)) {
             $initializer = $this->varDeclaration();
         } else {
             $initializer = $this->expressionStatement();
@@ -152,7 +160,7 @@ class Parser
         $this->consume(TokenType::RIGHT_PAREN, "Expect ')' after for clauses.");
         $body = $this->statement();
 
-        if ( $increment) {
+        if ($increment) {
             $body = new BlockStmt([$body, new ExpressionStmt($increment)]);
         }
 
@@ -172,17 +180,32 @@ class Parser
     {
         $expr = $this->expression();
         $this->consume(TokenType::SEMICOLON, "Expect ';' after value.");
+
         return new PrintStmt($expr);
+    }
+
+    private function returnStatement(): Stmt {
+        $keyword = $this->previous();
+
+        $value = null;
+        if (!$this->check(TokenType::SEMICOLON)) {
+            $value = $this->expression();
+        }
+
+        $this->consume(TokenType::SEMICOLON, "Expected ';' after return value.");
+        return new ReturnStmt($keyword, $value);
     }
 
     private function expressionStatement(): Stmt
     {
         $expr = $this->expression();
         $this->consume(TokenType::SEMICOLON, "Expect ';' after expression.");
+
         return new ExpressionStmt($expr);
     }
 
-    private function function(string $kind): Stmt {
+    private function function(string $kind): Stmt
+    {
         $name = $this->consume(TokenType::IDENTIFIER, "Expect $kind name.");
         $this->consume(TokenType::LEFT_PAREN, "Expect '(' after $kind name.");
         $params = [];
@@ -192,14 +215,15 @@ class Parser
                     $this->error($this->peek(), "Can't have more than 255 parameters.");
                 }
 
-                $params[] = $this->consume(TokenType::IDENTIFIER, "Expect parameter name.");
-            } while($this->match(TokenType::COMMA));
+                $params[] = $this->consume(TokenType::IDENTIFIER, 'Expect parameter name.');
+            } while ($this->match(TokenType::COMMA));
         }
 
         $this->consume(TokenType::RIGHT_PAREN, "Expect ')' after parameters.");
 
         $this->consume(TokenType::LEFT_BRACE, "Expect '{' before $kind body.");
         $body = $this->block();
+
         return new FunctionStmt($name, $params, $body);
     }
 
@@ -213,6 +237,7 @@ class Parser
         }
 
         $this->consume(TokenType::RIGHT_BRACE, "Expect '}' after block.");
+
         return $stmts;
     }
 
@@ -231,10 +256,11 @@ class Parser
 
             if ($expr instanceof VariableExpr) {
                 $name = $expr->name;
+
                 return new AssignExpr($name, $value);
             }
 
-            $this->error($equals, "Invalid assignment target.");
+            $this->error($equals, 'Invalid assignment target.');
         }
 
         return $expr;
@@ -244,7 +270,7 @@ class Parser
     {
         $expr = $this->and();
 
-        while($this->match(TokenType::OR)) {
+        while ($this->match(TokenType::OR)) {
             $op = $this->previous();
             $right = $this->and();
             $expr = new LogicalExpr($expr, $op, $right);
@@ -257,7 +283,7 @@ class Parser
     {
         $expr = $this->equality();
 
-        while($this->match(TokenType::AND)) {
+        while ($this->match(TokenType::AND)) {
             $op = $this->previous();
             $right = $this->equality();
             $expr = new LogicalExpr($expr, $op, $right);
@@ -270,7 +296,7 @@ class Parser
     {
         $expr = $this->comparison();
 
-        while($this->match(TokenType::BANG_EQUAL, TokenType::EQUAL_EQUAL)) {
+        while ($this->match(TokenType::BANG_EQUAL, TokenType::EQUAL_EQUAL)) {
             $op = $this->previous();
             $right = $this->comparison();
             $expr = new BinaryExpr($expr, $op, $right);
@@ -283,7 +309,7 @@ class Parser
     {
         $expr = $this->term();
 
-        while($this->match(TokenType::GREATER, TokenType::GREATER_EQUAL, TokenType::LESS, TokenType::LESS_EQUAL)) {
+        while ($this->match(TokenType::GREATER, TokenType::GREATER_EQUAL, TokenType::LESS, TokenType::LESS_EQUAL)) {
             $op = $this->previous();
             $right = $this->term();
             $expr = new BinaryExpr($expr, $op, $right);
@@ -296,7 +322,7 @@ class Parser
     {
         $expr = $this->factor();
 
-        while($this->match(TokenType::PLUS, TokenType::MINUS)) {
+        while ($this->match(TokenType::PLUS, TokenType::MINUS)) {
             $op = $this->previous();
             $right = $this->factor();
             $expr = new BinaryExpr($expr, $op, $right);
@@ -309,7 +335,7 @@ class Parser
     {
         $expr = $this->unary();
 
-        while($this->match(TokenType::STAR, TokenType::SLASH)) {
+        while ($this->match(TokenType::STAR, TokenType::SLASH)) {
             $op = $this->previous();
             $right = $this->unary();
             $expr = new BinaryExpr($expr, $op, $right);
@@ -327,16 +353,17 @@ class Parser
         return $this->call();
     }
 
-    private function finishCall(Expr $callee): Expr {
+    private function finishCall(Expr $callee): Expr
+    {
         $args = [];
 
-        if(!$this->check(TokenType::RIGHT_PAREN)) {
+        if (!$this->check(TokenType::RIGHT_PAREN)) {
             do {
                 if (count($args) >= 255) {
                     $this->error($this->peek(), "Can't have more than 255 arguments.");
                 }
                 $args[] = $this->expression();
-            } while($this->match(TokenType::COMMA));
+            } while ($this->match(TokenType::COMMA));
         }
 
         $paren = $this->consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments.");
@@ -344,10 +371,11 @@ class Parser
         return new CallExpr($callee, $paren, $args);
     }
 
-    private function call(): Expr {
+    private function call(): Expr
+    {
         $expr = $this->primary();
 
-        while(true) {
+        while (true) {
             if ($this->match(TokenType::LEFT_PAREN)) {
                 $expr = $this->finishCall($expr);
             } else {
@@ -381,17 +409,19 @@ class Parser
         if ($this->match(TokenType::LEFT_PAREN)) {
             $expr = $this->expression();
             $this->consume(TokenType::RIGHT_PAREN, "Expect ')' after expression.");
+
             return new GroupingExpr($expr);
         }
 
-        throw $this->error($this->peek(), "Expect expression.");
+        throw $this->error($this->peek(), 'Expect expression.');
     }
 
-    private function match(TokenType... $types): bool
+    private function match(TokenType ...$types): bool
     {
-        foreach($types as $type) {
+        foreach ($types as $type) {
             if ($this->check($type)) {
                 $this->advance();
+
                 return true;
             }
         }
@@ -413,13 +443,14 @@ class Parser
         if ($this->isAtEnd()) {
             return false;
         }
+
         return $this->peek()->type === $type;
     }
 
     private function advance(): Token
     {
         if (!$this->isAtEnd()) {
-            $this->current++;
+            ++$this->current;
         }
 
         return $this->previous();
@@ -427,7 +458,7 @@ class Parser
 
     private function isAtEnd(): bool
     {
-        return $this->peek()->type === TokenType::EOF;
+        return TokenType::EOF === $this->peek()->type;
     }
 
     private function peek(): Token
@@ -443,6 +474,7 @@ class Parser
     private function error(Token $token, string $msg): ParserError
     {
         PloxCommand::errorToken($token, $msg);
+
         return new ParserError();
     }
 
@@ -450,8 +482,8 @@ class Parser
     {
         $this->advance();
 
-        while(!$this->isAtEnd()) {
-            if ($this->previous()->type === TokenType::SEMICOLON) {
+        while (!$this->isAtEnd()) {
+            if (TokenType::SEMICOLON === $this->previous()->type) {
                 return;
             }
 

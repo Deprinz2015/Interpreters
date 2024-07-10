@@ -18,6 +18,7 @@ use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 use Nkoll\Plox\Lox\Stmt\IfStmt;
 use Nkoll\Plox\Lox\Stmt\PrintStmt;
+use Nkoll\Plox\Lox\Stmt\ReturnStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
 use Nkoll\Plox\Lox\Stmt\StmtVisitor;
 use Nkoll\Plox\Lox\Stmt\VarStmt;
@@ -152,6 +153,16 @@ class Interpreter implements ExprVisitor, StmtVisitor
     {
         echo $this->stringify($this->evaluate($stmt->expression));
         echo PHP_EOL;
+    }
+
+    public function visitReturnStmt(ReturnStmt $stmt)
+    {
+        $value = null;
+        if ($stmt->value) {
+            $value = $this->evaluate($stmt->value);
+        }
+
+        throw new ReturnValue($value);
     }
 
     public function visitBlockStmt(BlockStmt $stmt)

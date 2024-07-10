@@ -14,10 +14,17 @@ class LoxFunction implements LoxCallable
     public function call(Interpreter $interpreter, array $arguments)
     {
         $env = new Environment($interpreter->globals);
-        for($i = 0; $i < count($this->declaration->params); $i++) {
+        for ($i = 0; $i < count($this->declaration->params); ++$i) {
             $env->define($this->declaration->params[$i]->lexeme, $arguments[$i]);
         }
-        $interpreter->executeBlock($this->declaration->body, $env);
+
+        try {
+            $interpreter->executeBlock($this->declaration->body, $env);
+        } catch (ReturnValue $value) {
+            return $value->value;
+        }
+
+        return null;
     }
 
     public function arity(): int

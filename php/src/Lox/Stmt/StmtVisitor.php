@@ -9,6 +9,7 @@ interface StmtVisitor
     public function visitFunctionStmt(FunctionStmt $stmt);
     public function visitIfStmt(IfStmt $stmt);
     public function visitPrintStmt(PrintStmt $stmt);
+    public function visitReturnStmt(ReturnStmt $stmt);
     public function visitVarStmt(VarStmt $stmt);
     public function visitWhileStmt(WhileStmt $stmt);
 }
