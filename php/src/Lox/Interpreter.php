@@ -15,6 +15,7 @@ use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
+use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 use Nkoll\Plox\Lox\Stmt\IfStmt;
 use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
@@ -26,7 +27,7 @@ use Nkoll\Plox\PloxCommand;
 class Interpreter implements ExprVisitor, StmtVisitor
 {
     private Environment $environment;
-    private Environment $globals;
+    public Environment $globals;
 
     public function __construct()
     {
@@ -92,7 +93,7 @@ class Interpreter implements ExprVisitor, StmtVisitor
         $stmt->accept($this);
     }
 
-    private function executeBlock(array $statements, Environment $env)
+    public function executeBlock(array $statements, Environment $env)
     {
         $previous = $this->environment;
 
@@ -131,6 +132,11 @@ class Interpreter implements ExprVisitor, StmtVisitor
     public function visitExpressionStmt(ExpressionStmt $stmt)
     {
         $this->evaluate($stmt->expression);
+    }
+
+    public function visitFunctionStmt(FunctionStmt $stmt) { 
+        $function = new LoxFunction($stmt);
+        $this->environment->define($stmt->name->lexeme, $function);
     }
 
     public function visitIfStmt(IfStmt $stmt)

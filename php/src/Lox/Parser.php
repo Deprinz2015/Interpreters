@@ -46,7 +46,7 @@ class Parser
         }
     }
 
-    private function declaration(): Stmt
+    private function declaration(): ?Stmt
     {
         try {
             if ($this->match(TokenType::FUN)) {
@@ -198,7 +198,7 @@ class Parser
 
         $this->consume(TokenType::RIGHT_PAREN, "Expect ')' after parameters.");
 
-        $this->consume(TokenType::RIGHT_BRACE, "Expect '{' before $kind body.");
+        $this->consume(TokenType::LEFT_BRACE, "Expect '{' before $kind body.");
         $body = $this->block();
         return new FunctionStmt($name, $params, $body);
     }

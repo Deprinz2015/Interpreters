@@ -8,10 +8,25 @@ class LoxFunction implements LoxCallable
 {
     public function __construct(
         private FunctionStmt $declaration,
-    )
-    { }
+    ) {
+    }
 
-    public function call(Interpreter $interpreter, array $arguments) { }
+    public function call(Interpreter $interpreter, array $arguments)
+    {
+        $env = new Environment($interpreter->globals);
+        for($i = 0; $i < count($this->declaration->params); $i++) {
+            $env->define($this->declaration->params[$i]->lexeme, $arguments[$i]);
+        }
+        $interpreter->executeBlock($this->declaration->body, $env);
+    }
 
-    public function arity(): int { }
+    public function arity(): int
+    {
+        return count($this->declaration->params);
+    }
+
+    public function __toString()
+    {
+        return "<fn {$this->declaration->name->lexeme}>";
+    }
 }
