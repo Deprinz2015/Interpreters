@@ -1,6 +1,8 @@
 <?php
 
-namespace Nkoll\Plox\Lox;
+namespace Nkoll\Plox\Lox\Expr;
+
+use Nkoll\Plox\Lox\Token;
 
 class UnaryExpr extends Expr
 {
@@ -9,7 +11,7 @@ class UnaryExpr extends Expr
         public Expr $right,
     ) { }
 
-    public function accept(Visitor $visitor)
+    public function accept(ExprVisitor $visitor)
     {
         return $visitor->visitUnaryExpr($this);
     }

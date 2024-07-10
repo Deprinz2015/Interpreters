@@ -1,8 +1,8 @@
 <?php
 
-namespace Nkoll\Plox\Lox;
+namespace Nkoll\Plox\Lox\Expr;
 
-interface Visitor
+interface ExprVisitor
 {
     public function visitBinaryExpr(BinaryExpr $expr);
     public function visitGroupingExpr(GroupingExpr $expr);

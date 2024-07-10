@@ -3,9 +3,15 @@
 namespace Nkoll\Plox\Lox;
 
 use Nkoll\Plox\Lox\Error\RuntimeError;
+use Nkoll\Plox\Lox\Expr\BinaryExpr;
+use Nkoll\Plox\Lox\Expr\Expr;
+use Nkoll\Plox\Lox\Expr\ExprVisitor;
+use Nkoll\Plox\Lox\Expr\GroupingExpr;
+use Nkoll\Plox\Lox\Expr\LiteralExpr;
+use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\PloxCommand;
 
-class Interpreter implements Visitor
+class Interpreter implements ExprVisitor
 {
     public function interpret(Expr $expr): void {
         try {

@@ -19,26 +19,39 @@ class GenAstCommand extends Command
     public function execute(InputInterface $input, OutputInterface $output): int
     {
         $outputDir = $input->getArgument('output_dir');
+        if (str_ends_with($outputDir, "/")) {
+            $outputDir = substr($outputDir, 0, strlen($outputDir) - 1);
+        }
         $this->defineAst($outputDir, "Expr", [
             "Binary   : Expr left, Token operator, Expr right",
             "Grouping : Expr expression",
             "Literal  : mixed value",
-            "Unary    : Token operator, Expr right"
+            "Unary    : Token operator, Expr right",
+        ]);
+        $this->defineAst($outputDir, "Stmt", [
+            "Expression : Expr expression",
+            "Print      : Expr expression",
         ]);
         return Command::SUCCESS;
     }
 
     private function defineAst(string $outputDir, string $baseName, array $types): void
     {
+        $outputDir = "$outputDir/$baseName";
+
+        if (!file_exists($outputDir)) {
+            mkdir($outputDir);
+        }
+
         $path = "$outputDir/$baseName.php";
 
         $content = "<?php
 
-namespace Nkoll\Plox\Lox;
+namespace Nkoll\Plox\Lox\\$baseName;
 
 abstract class $baseName
 {
-    abstract public function accept(Visitor \$visitor);
+    abstract public function accept({$baseName}Visitor \$visitor);
 }
 ";
 
@@ -57,13 +70,13 @@ abstract class $baseName
 
     private function defineVisitor(string $outputDir, string $basename, array $types): void
     {
-        $path = "$outputDir/Visitor.php";
+        $path = "$outputDir/{$basename}Visitor.php";
 
         $content = "<?php
 
-namespace Nkoll\Plox\Lox;
+namespace Nkoll\Plox\Lox\\$basename;
 
-interface Visitor
+interface {$basename}Visitor
 {
 ";
         foreach($types as $type) {
@@ -80,26 +93,38 @@ interface Visitor
     {
         $fields = explode(', ', $fields);
 
-        $fields = array_map(function ($field) {
+        $neededTypes = [];
+        $fields = array_map(function ($field) use (&$neededTypes, $basename) {
             [$type, $name] = explode(' ', $field);
+            if (ctype_upper($type[0]) && $type !== $basename) {
+                $neededTypes[] = $type;
+            }
             return "        public $type \$$name,";
         }, $fields);
         $fields = implode(PHP_EOL, $fields);
+        $neededTypes = array_unique($neededTypes);
 
+        $neededTypes = array_map(function (string $type) {
+            return "use Nkoll\Plox\Lox\\$type;";
+        }, $neededTypes);
+        $neededTypes = implode(PHP_EOL, $neededTypes);
+        if ($neededTypes !== "") {
+            $neededTypes = "\n$neededTypes\n";
+        }
 
         $path = "$outputDir/$classname$basename.php";
 
         $content = "<?php
 
-namespace Nkoll\Plox\Lox;
-
+namespace Nkoll\Plox\Lox\\$basename;
+$neededTypes
 class $classname$basename extends $basename
 {
     public function __construct(
 $fields
     ) { }
 
-    public function accept(Visitor \$visitor)
+    public function accept({$basename}Visitor \$visitor)
     {
         return \$visitor->visit$classname$basename(\$this);
     }

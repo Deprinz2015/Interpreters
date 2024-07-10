@@ -1,6 +1,6 @@
 <?php
 
-namespace Nkoll\Plox\Lox;
+namespace Nkoll\Plox\Lox\Expr;
 
 class GroupingExpr extends Expr
 {
@@ -8,7 +8,7 @@ class GroupingExpr extends Expr
         public Expr $expression,
     ) { }
 
-    public function accept(Visitor $visitor)
+    public function accept(ExprVisitor $visitor)
     {
         return $visitor->visitGroupingExpr($this);
     }

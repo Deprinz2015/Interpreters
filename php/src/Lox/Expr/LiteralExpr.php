@@ -1,6 +1,6 @@
 <?php
 
-namespace Nkoll\Plox\Lox;
+namespace Nkoll\Plox\Lox\Expr;
 
 class LiteralExpr extends Expr
 {
@@ -8,7 +8,7 @@ class LiteralExpr extends Expr
         public mixed $value,
     ) { }
 
-    public function accept(Visitor $visitor)
+    public function accept(ExprVisitor $visitor)
     {
         return $visitor->visitLiteralExpr($this);
     }

@@ -4,6 +4,11 @@ namespace Nkoll\Plox\Lox;
 
 use Nkoll\Plox\PloxCommand;
 use Nkoll\Plox\Lox\Error\ParserError;
+use Nkoll\Plox\Lox\Expr\BinaryExpr;
+use Nkoll\Plox\Lox\Expr\Expr;
+use Nkoll\Plox\Lox\Expr\GroupingExpr;
+use Nkoll\Plox\Lox\Expr\LiteralExpr;
+use Nkoll\Plox\Lox\Expr\UnaryExpr;
 
 class Parser
 {
