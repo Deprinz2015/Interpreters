@@ -9,10 +9,12 @@ use Nkoll\Plox\Lox\Expr\Expr;
 use Nkoll\Plox\Lox\Expr\ExprVisitor;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
+use Nkoll\Plox\Lox\Expr\LogicalExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
+use Nkoll\Plox\Lox\Stmt\IfStmt;
 use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
 use Nkoll\Plox\Lox\Stmt\StmtVisitor;
@@ -104,6 +106,15 @@ class Interpreter implements ExprVisitor, StmtVisitor
         $this->evaluate($stmt->expression);
     }
 
+    public function visitIfStmt(IfStmt $stmt)
+    {
+        if ($this->evaluate($stmt->condition)) {
+            $this->execute($stmt->thenBranch);
+        } elseif ($stmt->elseBranch) {
+            $this->execute($stmt->elseBranch);
+        }
+    }
+
     public function visitPrintStmt(PrintStmt $stmt)
     {
         echo $this->stringify($this->evaluate($stmt->expression));
@@ -184,6 +195,23 @@ class Interpreter implements ExprVisitor, StmtVisitor
     public function visitLiteralExpr(LiteralExpr $expr)
     {
         return $expr->value;
+    }
+
+    public function visitLogicalExpr(LogicalExpr $expr) { 
+        $left = $this->evaluate($expr->left);
+
+        if ($expr->operator->type === TokenType::OR) {
+            if ($left) {
+                return $left;
+            }
+        }
+        else {
+            if (!$left) {
+                return $left;
+            }
+        }
+
+        return $this->evaluate($expr->right);
     }
 
     public function visitUnaryExpr(UnaryExpr $expr)

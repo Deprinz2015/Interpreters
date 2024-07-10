@@ -9,10 +9,12 @@ use Nkoll\Plox\Lox\Expr\BinaryExpr;
 use Nkoll\Plox\Lox\Expr\Expr;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
+use Nkoll\Plox\Lox\Expr\LogicalExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
+use Nkoll\Plox\Lox\Stmt\IfStmt;
 use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\VarStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
@@ -70,6 +72,10 @@ class Parser
 
     private function statement(): Stmt
     {
+        if ($this->match(TokenType::IF)) {
+            return $this->ifStatement();
+        }
+
         if($this->match(TokenType::PRINT)) {
             return $this->printStatement();
         }
@@ -79,6 +85,21 @@ class Parser
         }
 
         return $this->expressionStatement();
+    }
+
+    private function ifStatement(): Stmt
+    {
+        $this->consume(TokenType::LEFT_PAREN, "Expect '(' after 'if'.");
+        $condition = $this->expression();
+        $this->consume(TokenType::RIGHT_PAREN, "Expect ')' after condition.");
+
+        $thenBranch = $this->statement();
+        $elseBranch = null;
+        if ($this->match(TokenType::ELSE)) {
+            $elseBranch = $this->statement();
+        }
+
+        return new IfStmt($condition, $thenBranch, $elseBranch);
     }
 
     private function printStatement(): Stmt
@@ -96,7 +117,8 @@ class Parser
     }
 
     /** @return Stmt[]  */
-    private function block(): array {
+    private function block(): array
+    {
         $stmts = [];
 
         while (!$this->check(TokenType::RIGHT_BRACE) && !$this->isAtEnd()) {
@@ -114,7 +136,7 @@ class Parser
 
     private function assignment(): Expr
     {
-        $expr = $this->equality();
+        $expr = $this->or();
 
         if ($this->match(TokenType::EQUAL)) {
             $equals = $this->previous();
@@ -126,6 +148,30 @@ class Parser
             }
 
             $this->error($equals, "Invalid assignment target.");
+        }
+
+        return $expr;
+    }
+
+    private function or(): Expr {
+        $expr = $this->and();
+
+        while($this->match(TokenType::OR)) {
+            $op = $this->previous();
+            $right = $this->and();
+            $expr = new LogicalExpr($expr, $op, $right);
+        }
+
+        return $expr;
+    }
+
+    private function and(): Expr {
+        $expr = $this->equality();
+
+        while($this->match(TokenType::AND)) {
+            $op = $this->previous();
+            $right = $this->equality();
+            $expr = new LogicalExpr($expr, $op, $right);
         }
 
         return $expr;
