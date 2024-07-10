@@ -42,35 +42,41 @@ abstract class $baseName
 }
 ";
 
-        $content .= $this->defineVisitor($baseName, $types);
+        file_put_contents($path, $content);
+
+        $this->defineVisitor($outputDir, $baseName, $types);
 
         foreach ($types as $type) {
             [$classname, $fields] = explode(':', $type);
             $classname = trim($classname);
             $fields = trim($fields);
-            $content .= $this->defineType($baseName, $classname, $fields);
+            $this->defineType($outputDir, $baseName, $classname, $fields);
         }
 
-        file_put_contents($path, $content);
     }
 
-    private function defineVisitor(string $basename, array $types): string
+    private function defineVisitor(string $outputDir, string $basename, array $types): void
     {
-        $content = "
+        $path = "$outputDir/Visitor.php";
+
+        $content = "<?php
+
+namespace Nkoll\Plox\Lox;
+
 interface Visitor
 {
 ";
         foreach($types as $type) {
-            $typeName = trim(explode(':', $type)[0]);
+            $typeName = trim(explode(':', $type)[0]) . $basename;
             $varName = strtolower($basename);
-            $content .= "    public function visit$typeName$basename($typeName \$$varName);" . PHP_EOL;
+            $content .= "    public function visit$typeName($typeName \$$varName);" . PHP_EOL;
         }
 
         $content .= "}";
-        return $content;
+        file_put_contents($path, $content);
     }
 
-    private function defineType(string $basename, string $classname, string $fields): string
+    private function defineType(string $outputDir, string $basename, string $classname, string $fields): void
     {
         $fields = explode(', ', $fields);
 
@@ -80,8 +86,14 @@ interface Visitor
         }, $fields);
         $fields = implode(PHP_EOL, $fields);
 
-        $content = "
-class $classname extends $basename
+
+        $path = "$outputDir/$classname$basename.php";
+
+        $content = "<?php
+
+namespace Nkoll\Plox\Lox;
+
+class $classname$basename extends $basename
 {
     public function __construct(
 $fields
@@ -94,6 +106,6 @@ $fields
 }
 ";
 
-        return $content;
+        file_put_contents($path, $content);
     }
 }

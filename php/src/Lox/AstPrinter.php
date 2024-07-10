@@ -5,23 +5,23 @@ namespace Nkoll\Plox\Lox;
 class AstPrinter implements Visitor
 {
 
-    public function visitBinaryExpr(Binary $expr) { 
+    public function visitBinaryExpr(BinaryExpr $expr) { 
         return $this->parenthesize($expr->operator->lexeme, $expr->left, $expr->right);
     }
 
-    public function visitGroupingExpr(Grouping $expr) {
+    public function visitGroupingExpr(GroupingExpr $expr) {
         return $this->parenthesize('group', $expr->expression);
     }
 
-    public function visitLiteralExpr(Literal $expr) {
+    public function visitLiteralExpr(LiteralExpr $expr) {
         if ($expr->value === null) {
             return "nil";
         }
 
-        return "$expr";
+        return "{$expr->value}";
     }
 
-    public function visitUnaryExpr(Unary $expr) {
+    public function visitUnaryExpr(UnaryExpr $expr) {
         return $this->parenthesize($expr->operator->lexeme, $expr->right);
     }
 
@@ -31,5 +31,9 @@ class AstPrinter implements Visitor
         }, $exprs);
         $values = implode(" ", $exprs);
         return "($name $values)";
+    }
+
+    public function print(Expr $expr): string {
+        return $expr->accept($this);
     }
 }

@@ -9,6 +9,7 @@ class Scanner
 {
     /** @var Token[] */
     private array $tokens = [];
+    private string $source;
 
     private int $start = 0;
     private int $current = 0;
@@ -33,9 +34,9 @@ class Scanner
         "while" => TokenType::WHILE,
     ];
 
-    public function __construct(
-        private string $source,
-    ) {
+    public function __construct(string $source)
+    {
+        $this->source = $source;
     }
 
     /** @return Token[]  */

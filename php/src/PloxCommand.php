@@ -2,7 +2,12 @@
 
 namespace Nkoll\Plox;
 
+use Nkoll\Plox\Lox\AstPrinter;
+use Nkoll\Plox\Lox\Error\ParserError;
+use Nkoll\Plox\Lox\Parser;
 use Nkoll\Plox\Lox\Scanner;
+use Nkoll\Plox\Lox\Token;
+use Nkoll\Plox\Lox\TokenType;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -61,17 +66,34 @@ class PloxCommand extends Command
     {
         $scanner = new Scanner($script);
         $tokens = $scanner->scanTokens();
+        $parser = new Parser($tokens);
+        $expr = $parser->parse();
 
-        foreach ($tokens as $token) {
-            echo $token . PHP_EOL;
+        if (self::$hadError) {
+            return;
         }
+
+        $printer = new AstPrinter();
+        echo $printer->print($expr);
+        echo PHP_EOL;
     }
 
-    public static function error(int $line, string $msg): void {
+    public static function error(int $line, string $msg): void
+    {
         self::report($line, "", $msg);
     }
 
-    private static function report(int $line, string $where, string $msg): void {
+    public static function errorToken(Token $token, string $msg): void
+    {
+        if ($token->type === TokenType::EOF) {
+            self::report($token->line, " at end", $msg);
+        } else {
+            self::report($token->line, " at '{$token->lexeme}'", $msg);
+        }
+    }
+
+    private static function report(int $line, string $where, string $msg): void
+    {
         echo "[line $line] Error $where: $msg" . PHP_EOL;
         self::$hadError = true;
     }
