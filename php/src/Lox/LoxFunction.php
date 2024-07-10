@@ -8,12 +8,13 @@ class LoxFunction implements LoxCallable
 {
     public function __construct(
         private FunctionStmt $declaration,
+        private Environment $closure,
     ) {
     }
 
     public function call(Interpreter $interpreter, array $arguments)
     {
-        $env = new Environment($interpreter->globals);
+        $env = new Environment($this->closure);
         for ($i = 0; $i < count($this->declaration->params); ++$i) {
             $env->define($this->declaration->params[$i]->lexeme, $arguments[$i]);
         }
