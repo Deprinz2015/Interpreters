@@ -3,6 +3,7 @@
 namespace Nkoll\Plox\Lox;
 
 use Nkoll\Plox\PloxCommand;
+use Nkoll\Plox\Lox\Error\ParserError;
 
 class Parser
 {

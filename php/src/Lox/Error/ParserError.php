@@ -1,6 +1,6 @@
 <?php
 
-namespace Nkoll\Plox\Lox;
+namespace Nkoll\Plox\Lox\Error;
 
 use Error;
 

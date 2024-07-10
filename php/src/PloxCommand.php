@@ -2,8 +2,8 @@
 
 namespace Nkoll\Plox;
 
-use Nkoll\Plox\Lox\AstPrinter;
-use Nkoll\Plox\Lox\Error\ParserError;
+use Nkoll\Plox\Lox\Error\RuntimeError;
+use Nkoll\Plox\Lox\Interpreter;
 use Nkoll\Plox\Lox\Parser;
 use Nkoll\Plox\Lox\Scanner;
 use Nkoll\Plox\Lox\Token;
@@ -16,7 +16,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 class PloxCommand extends Command
 {
+    private Interpreter $interpreter;
+
     public static bool $hadError = false;
+    public static bool $hadRuntimeError = false;
 
     private SymfonyStyle $io;
 
@@ -29,6 +32,7 @@ class PloxCommand extends Command
 
     public function execute(InputInterface $input, OutputInterface $output): int
     {
+        $this->interpreter = new Interpreter();
         $this->io = new SymfonyStyle($input, $output);
 
         if (($path = $input->getArgument('file'))) {
@@ -42,7 +46,7 @@ class PloxCommand extends Command
         $script = file_get_contents($path);
         $this->runScript($script);
 
-        if (self::$hadError) {
+        if (self::$hadError || self::$hadRuntimeError) {
             return Command::FAILURE;
         }
         return Command::SUCCESS;
@@ -73,9 +77,7 @@ class PloxCommand extends Command
             return;
         }
 
-        $printer = new AstPrinter();
-        echo $printer->print($expr);
-        echo PHP_EOL;
+        $this->interpreter->interpret($expr);
     }
 
     public static function error(int $line, string $msg): void
@@ -90,6 +92,11 @@ class PloxCommand extends Command
         } else {
             self::report($token->line, " at '{$token->lexeme}'", $msg);
         }
+    }
+
+    public static function runtimeError(RuntimeError $e): void {
+        echo $e->getMessage() . "\n[line {$e->token->line}]" . PHP_EOL;
+        self::$hadRuntimeError = true;
     }
 
     private static function report(int $line, string $where, string $msg): void
