@@ -9,6 +9,19 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class GenAstCommand extends Command
 {
+    private const asts = [
+        "Expr" => [
+            "Binary   : Expr left, Token operator, Expr right",
+            "Grouping : Expr expression",
+            "Literal  : mixed value",
+            "Unary    : Token operator, Expr right",
+        ],
+        "Stmt" => [
+            "Expression : Expr expression",
+            "Print      : Expr expression",
+        ],
+    ];
+
     public function configure()
     {
         $this->setName('ast')
@@ -22,16 +35,11 @@ class GenAstCommand extends Command
         if (str_ends_with($outputDir, "/")) {
             $outputDir = substr($outputDir, 0, strlen($outputDir) - 1);
         }
-        $this->defineAst($outputDir, "Expr", [
-            "Binary   : Expr left, Token operator, Expr right",
-            "Grouping : Expr expression",
-            "Literal  : mixed value",
-            "Unary    : Token operator, Expr right",
-        ]);
-        $this->defineAst($outputDir, "Stmt", [
-            "Expression : Expr expression",
-            "Print      : Expr expression",
-        ]);
+
+        foreach(self::asts as $base => $types) {
+            $this->defineAst($outputDir, $base, $types);
+        }
+
         return Command::SUCCESS;
     }
 
@@ -97,7 +105,11 @@ interface {$basename}Visitor
         $fields = array_map(function ($field) use (&$neededTypes, $basename) {
             [$type, $name] = explode(' ', $field);
             if (ctype_upper($type[0]) && $type !== $basename) {
-                $neededTypes[] = $type;
+                $import = $type;
+                if (in_array($type, array_keys(self::asts))) {
+                    $import = "$type\\$type";
+                }
+                $neededTypes[] = $import;
             }
             return "        public $type \$$name,";
         }, $fields);

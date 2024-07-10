@@ -2,7 +2,7 @@
 
 namespace Nkoll\Plox\Lox\Stmt;
 
-use Nkoll\Plox\Lox\Expr;
+use Nkoll\Plox\Lox\Expr\Expr;
 
 class PrintStmt extends Stmt
 {

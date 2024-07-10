@@ -9,6 +9,9 @@ use Nkoll\Plox\Lox\Expr\Expr;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
+use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
+use Nkoll\Plox\Lox\Stmt\PrintStmt;
+use Nkoll\Plox\Lox\Stmt\Stmt;
 
 class Parser
 {
@@ -20,13 +23,42 @@ class Parser
         $this->tokens = $tokens;
     }
 
-    public function parse(): ?Expr
+    /** @return ?Stmt[]  */
+    public function parse(): ?array
     {
         try {
-            return $this->expression();
-        } catch(ParserError) {
+
+            $stmts = [];
+            while(!$this->isAtEnd()) {
+                $stmts[] = $this->statement();
+            }
+            return $stmts;
+        } catch (ParserError) {
             return null;
         }
+    }
+
+    private function statement(): Stmt
+    {
+        if($this->match(TokenType::PRINT)) {
+            return $this->printStatement();
+        }
+
+        return $this->expressionStatement();
+    }
+
+    private function printStatement(): Stmt
+    {
+        $expr = $this->expression();
+        $this->consume(TokenType::SEMICOLON, "Expect ';' after value.");
+        return new PrintStmt($expr);
+    }
+
+    private function expressionStatement(): Stmt
+    {
+        $expr = $this->expression();
+        $this->consume(TokenType::SEMICOLON, "Expect ';' after expression.");
+        return new ExpressionStmt($expr);
     }
 
     private function expression(): Expr

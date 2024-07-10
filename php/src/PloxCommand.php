@@ -71,13 +71,13 @@ class PloxCommand extends Command
         $scanner = new Scanner($script);
         $tokens = $scanner->scanTokens();
         $parser = new Parser($tokens);
-        $expr = $parser->parse();
+        $stmts = $parser->parse();
 
         if (self::$hadError) {
             return;
         }
 
-        $this->interpreter->interpret($expr);
+        $this->interpreter->interpret($stmts);
     }
 
     public static function error(int $line, string $msg): void

@@ -9,20 +9,31 @@ use Nkoll\Plox\Lox\Expr\ExprVisitor;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
+use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
+use Nkoll\Plox\Lox\Stmt\PrintStmt;
+use Nkoll\Plox\Lox\Stmt\Stmt;
+use Nkoll\Plox\Lox\Stmt\StmtVisitor;
 use Nkoll\Plox\PloxCommand;
 
-class Interpreter implements ExprVisitor
+class Interpreter implements ExprVisitor, StmtVisitor
 {
-    public function interpret(Expr $expr): void {
+    /**
+     * @param Stmt[] $statements
+     * @return void
+     */
+    public function interpret(array $statements): void
+    {
         try {
-            $value = $this->evaluate($expr);
-            echo $this->stringify($value) . PHP_EOL;
+            foreach($statements as $stmt) {
+                $this->execute($stmt);
+            }
         } catch (RuntimeError $e) {
             PloxCommand::runtimeError($e);
         }
     }
 
-    private function stringify($value): string {
+    private function stringify($value): string
+    {
         if ($value === null) {
             return 'nil';
         }
@@ -42,9 +53,25 @@ class Interpreter implements ExprVisitor
         return "$value";
     }
 
+    private function execute(Stmt $stmt)
+    {
+        $stmt->accept($this);
+    }
+
     private function evaluate(Expr $expr)
     {
         return $expr->accept($this);
+    }
+
+    public function visitExpressionStmt(ExpressionStmt $stmt)
+    {
+        $this->evaluate($stmt->expression);
+    }
+
+    public function visitPrintStmt(PrintStmt $stmt)
+    {
+        echo $this->stringify($this->evaluate($stmt->expression));
+        echo PHP_EOL;
     }
 
     public function visitBinaryExpr(BinaryExpr $expr)
@@ -130,7 +157,8 @@ class Interpreter implements ExprVisitor
         throw new RuntimeError($op, "Operand must be a number.");
     }
 
-    private function checkNumberOperands(Token $op, $left, $right): void {
+    private function checkNumberOperands(Token $op, $left, $right): void
+    {
         if (is_float($left) && is_float($right)) {
             return;
         }
