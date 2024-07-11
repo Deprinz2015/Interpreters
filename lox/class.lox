@@ -1,0 +1,20 @@
+class DevonshireCream {
+  serveOn() {
+    return "Scones";
+  }
+}
+
+print(DevonshireCream); // Prints "DevonshireCream".
+
+class Bagel {}
+var bagel = Bagel();
+print(bagel); // Prints "Bagel instance".
+
+class ItemBag {}
+var items = ItemBag();
+items.weapon = "sword";
+items.apple = 10;
+items.nametag = "Peter";
+print(items.nametag + " has...");
+print("..." + items.apple + " apples");
+print("..." + items.weapon + " as a weapon");
