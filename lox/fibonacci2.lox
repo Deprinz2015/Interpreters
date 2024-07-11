@@ -3,6 +3,11 @@ fun fib(n) {
   return fib(n - 2) + fib(n - 1);
 }
 
+print("Start");
+var begin = clock();
 for (var i = 0; i < 23; i = i + 1) {
   print(fib(i));
 }
+var end = clock();
+print("End");
+print("Time taken: " + (end - begin) + " secs");

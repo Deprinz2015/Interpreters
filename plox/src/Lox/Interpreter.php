@@ -50,7 +50,7 @@ class Interpreter implements ExprVisitor, StmtVisitor
 
             public function call(Interpreter $interpreter, array $arguments)
             {
-                return time();
+                return microtime(true);
             }
 
             public function __toString()
