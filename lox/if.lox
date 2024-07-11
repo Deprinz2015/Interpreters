@@ -1,16 +1,16 @@
-print "Logical:";
-print "hi" or 2; // "hi".
-print nil or "yes"; // "yes".
-print "";
+print("Logical:");
+print("hi" or 2); // "hi".
+print(nil or "yes"); // "yes".
+print("");
 
-print "If:";
+print("If:");
 if (1 == 2) {
-    print "impossible";
+    print("impossible");
 }
 else {
-    print "not equal";
+    print("not equal");
 }
 
 if (true) {
-    print "Weird if not printed";
+    print("Weird if not printed");
 }

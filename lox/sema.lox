@@ -1,6 +1,6 @@
 fun bad() {
   var a = "first";
-  print a;
+  print(a);
 }
 
 bad();
