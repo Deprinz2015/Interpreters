@@ -2,7 +2,14 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [13](https://craftinginterpreters.com/inheritance.html)
+Currently at Chapter [14.2](https://craftinginterpreters.com/chunks-of-bytecode.html#getting-started)
 
-The first Interpreter will be written in PHP. The Second Interpreter will be in Zig. More implementations may be added.
+This Project will contain at least 2 implementations:
+
+- plox
+- zlox
+
+Plox is done. Maybe i extend it in the future, idk tho. maybe not. probably not.
+
+Next is Zlox.
 
