@@ -5,6 +5,7 @@ namespace Nkoll\Plox;
 use Nkoll\Plox\Lox\Error\RuntimeError;
 use Nkoll\Plox\Lox\Interpreter;
 use Nkoll\Plox\Lox\Parser;
+use Nkoll\Plox\Lox\Resolver;
 use Nkoll\Plox\Lox\Scanner;
 use Nkoll\Plox\Lox\Token;
 use Nkoll\Plox\Lox\TokenType;
@@ -72,6 +73,13 @@ class PloxCommand extends Command
         $tokens = $scanner->scanTokens();
         $parser = new Parser($tokens);
         $stmts = $parser->parse();
+
+        if (self::$hadError) {
+            return;
+        }
+
+        $resolver = new Resolver($this->interpreter);
+        $resolver->resolveAll($stmts);
 
         if (self::$hadError) {
             return;

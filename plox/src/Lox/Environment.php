@@ -33,6 +33,10 @@ class Environment
         throw new RuntimeError($name, "Undefined variable '{$name->lexeme}'.");
     }
 
+    public function getAt(int $distance, string $name): mixed {
+        return $this->ancestor($distance)->values[$name];
+    }
+
     public function assign(Token $name, mixed $value): void
     {
         if(key_exists($name->lexeme, $this->values)) {
@@ -46,5 +50,17 @@ class Environment
         }
 
         throw new RuntimeError($name, "Undefined variable '{$name->lexeme}'.");
+    }
+
+    public function assignAt(int $distance, Token $name, mixed $value){
+        $this->ancestor($distance)->values[$name->lexeme] = $value;
+    }
+
+    private function ancestor(int $distance): Environment {
+        $env = $this;
+        for($i = 0; $i < $distance; $i++) {
+            $env = $env->enclosing;
+        }
+        return $env;
     }
 }

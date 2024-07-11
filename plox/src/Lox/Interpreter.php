@@ -24,18 +24,22 @@ use Nkoll\Plox\Lox\Stmt\StmtVisitor;
 use Nkoll\Plox\Lox\Stmt\VarStmt;
 use Nkoll\Plox\Lox\Stmt\WhileStmt;
 use Nkoll\Plox\PloxCommand;
+use SplObjectStorage;
 
 class Interpreter implements ExprVisitor, StmtVisitor
 {
     private Environment $environment;
     public Environment $globals;
 
+    private SplObjectStorage $locals;
+
     public function __construct()
     {
         $this->globals = new Environment();
         $this->environment = $this->globals;
+        $this->locals = new SplObjectStorage();
 
-        $this->globals->define("clock", new class implements LoxCallable {
+        $this->globals->define("clock", new class () implements LoxCallable {
             public function arity(): int
             {
                 return 0;
@@ -94,6 +98,11 @@ class Interpreter implements ExprVisitor, StmtVisitor
         $stmt->accept($this);
     }
 
+    public function resolve(Expr $expr, int $depth)
+    {
+        $this->locals[$expr] = $depth;
+    }
+
     public function executeBlock(array $statements, Environment $env)
     {
         $previous = $this->environment;
@@ -124,7 +133,8 @@ class Interpreter implements ExprVisitor, StmtVisitor
         $this->environment->define($stmt->name->lexeme, $value);
     }
 
-    public function visitWhileStmt(WhileStmt $stmt) { 
+    public function visitWhileStmt(WhileStmt $stmt)
+    {
         while($this->evaluate($stmt->condition)) {
             $this->execute($stmt->body);
         }
@@ -135,7 +145,8 @@ class Interpreter implements ExprVisitor, StmtVisitor
         $this->evaluate($stmt->expression);
     }
 
-    public function visitFunctionStmt(FunctionStmt $stmt) { 
+    public function visitFunctionStmt(FunctionStmt $stmt)
+    {
         $function = new LoxFunction($stmt, $this->environment);
         $this->environment->define($stmt->name->lexeme, $function);
     }
@@ -173,13 +184,29 @@ class Interpreter implements ExprVisitor, StmtVisitor
     public function visitAssignExpr(AssignExpr $expr)
     {
         $value = $this->evaluate($expr->value);
-        $this->environment->assign($expr->name, $value);
+
+        $distance = $this->locals[$expr] ?? null;
+        if ($distance !== null) {
+            $this->environment->assignAt($distance, $expr->name, $value);
+        } else {
+            $this->globals->assign($expr->name, $value);
+        }
         return $value;
     }
 
     public function visitVariableExpr(VariableExpr $expr)
     {
-        return $this->environment->get($expr->name);
+        return $this->lookupVariable($expr->name, $expr);
+    }
+
+    private function lookupVariable(Token $name, Expr $expr): mixed
+    {
+        $distance = $this->locals[$expr] ?? null;
+        if ($distance !== null) {
+            return $this->environment->getAt($distance, $name->lexeme);
+        }
+
+        return $this->globals->get($name);
     }
 
     public function visitBinaryExpr(BinaryExpr $expr)
@@ -231,7 +258,8 @@ class Interpreter implements ExprVisitor, StmtVisitor
         }
     }
 
-    public function visitCallExpr(CallExpr $expr) { 
+    public function visitCallExpr(CallExpr $expr)
+    {
         $callee = $this->evaluate($expr->callee);
 
         $args = [];
@@ -259,15 +287,15 @@ class Interpreter implements ExprVisitor, StmtVisitor
         return $expr->value;
     }
 
-    public function visitLogicalExpr(LogicalExpr $expr) { 
+    public function visitLogicalExpr(LogicalExpr $expr)
+    {
         $left = $this->evaluate($expr->left);
 
         if ($expr->operator->type === TokenType::OR) {
             if ($left) {
                 return $left;
             }
-        }
-        else {
+        } else {
             if (!$left) {
                 return $left;
             }
