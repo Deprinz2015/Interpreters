@@ -1,0 +1,13 @@
+class Person {
+    init() {
+        print("init");
+    }
+
+    greet() {
+        print(this.name);
+    }
+}
+
+var peter = Person();
+peter.name = "Peter";
+peter.greet();

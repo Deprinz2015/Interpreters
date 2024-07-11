@@ -27,12 +27,20 @@ class LoxClass implements LoxCallable
     public function call(Interpreter $interpreter, array $arguments)
     {
         $instance = new LoxInstance($this);
+        $init = $this->findMethod("init");
+        if ($init) {
+            $init->bind($instance)->call($interpreter, $arguments);
+        }
         return $instance;
     }
 
     public function arity(): int
     {
-        return 0;
+        $init = $this->findMethod("init");
+        if (!$init) {
+            return 0;
+        }
+        return $init->arity();
     }
 
     public function __toString()

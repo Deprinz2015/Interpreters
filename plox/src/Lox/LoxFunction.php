@@ -9,13 +9,14 @@ class LoxFunction implements LoxCallable
     public function __construct(
         private FunctionStmt $declaration,
         private Environment $closure,
+        private bool $isInitializer,
     ) {
     }
 
     public function bind(LoxInstance $instance): LoxFunction {
         $env = new Environment($this->closure);
         $env->define("this", $instance);
-        return new LoxFunction($this->declaration, $env);
+        return new LoxFunction($this->declaration, $env, $this->isInitializer);
     }
 
     public function call(Interpreter $interpreter, array $arguments)
@@ -28,6 +29,9 @@ class LoxFunction implements LoxCallable
         try {
             $interpreter->executeBlock($this->declaration->body, $env);
         } catch (ReturnValue $value) {
+            if ($this->isInitializer) {
+                return $this->closure->getAt(0, "this");
+            }
             return $value->value;
         }
 

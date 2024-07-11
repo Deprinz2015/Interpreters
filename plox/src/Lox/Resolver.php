@@ -118,6 +118,10 @@ class Resolver implements ExprVisitor, StmtVisitor
             PloxCommand::errorToken($stmt->keyword, "Can't return from top-level code.");
         }
 
+        if ($this->currentFunction === FunctionType::INITIALIZER) {
+            PloxCommand::errorToken($stmt->keyword, "Can't return from initializer.");
+        }
+
         if ($stmt->value) {
             $this->resolve($stmt->value);
         }
@@ -139,7 +143,7 @@ class Resolver implements ExprVisitor, StmtVisitor
     public function visitClassStmt(ClassStmt $stmt)
     {
         $enclosing = $this->currentClass;
-        $this->currentClass = ClassType::CLASS;
+        $this->currentClass = ClassType::CLASS_TYPE;
         $this->declare($stmt->name);
         $this->define($stmt->name);
 
@@ -150,6 +154,9 @@ class Resolver implements ExprVisitor, StmtVisitor
 
         foreach($stmt->methods as $method) {
             $declaration = FunctionType::METHOD;
+            if ($method->name->lexeme === "init") {
+                $declaration = FunctionType::INITIALIZER;
+            }
             $this->resolveFunction($method, $declaration);
         }
 

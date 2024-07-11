@@ -172,7 +172,7 @@ class Interpreter implements ExprVisitor, StmtVisitor
 
     public function visitFunctionStmt(FunctionStmt $stmt)
     {
-        $function = new LoxFunction($stmt, $this->environment);
+        $function = new LoxFunction($stmt, $this->environment, false);
         $this->environment->define($stmt->name->lexeme, $function);
     }
 
@@ -206,7 +206,7 @@ class Interpreter implements ExprVisitor, StmtVisitor
 
         $methods = [];
         foreach ($stmt->methods as $method) {
-            $function = new LoxFunction($method, $this->environment);
+            $function = new LoxFunction($method, $this->environment, $method->name->lexeme === "init");
             $methods[$method->name->lexeme] = $function;
         }
 

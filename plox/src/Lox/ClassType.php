@@ -5,5 +5,5 @@ namespace Nkoll\Plox\Lox;
 enum ClassType 
 {
     case NONE;
-    case CLASS;
+    case CLASS_TYPE;
 }
