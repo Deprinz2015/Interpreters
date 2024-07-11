@@ -75,6 +75,13 @@ class Parser
     private function classDeclaration(): Stmt
     {
         $name = $this->consume(TokenType::IDENTIFIER, "Expect class name.");
+
+        $superclass = null;
+        if ($this->match(TokenType::LESS)) {
+            $this->consume(TokenType::IDENTIFIER, "Expect Superclass after '<'.");
+            $superclass = new VariableExpr($this->previous());
+        }
+
         $this->consume(TokenType::LEFT_BRACE, "Expect '{' before class body.");
 
         $methods = [];
@@ -83,7 +90,7 @@ class Parser
         }
 
         $this->consume(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
-        return new ClassStmt($name, $methods);
+        return new ClassStmt($name, $superclass, $methods);
     }
 
     private function varDeclaration(): Stmt

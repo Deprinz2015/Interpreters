@@ -12,6 +12,7 @@ class LoxClass implements LoxCallable
      */
     public function __construct(
         public string $name,
+        public ?LoxClass $superclass,
         public array $methods,
     ) {
     }
@@ -19,6 +20,10 @@ class LoxClass implements LoxCallable
     public function findMethod(string $name) {
         if (key_exists($name, $this->methods)) {
             return $this->methods[$name];
+        }
+
+        if ($this->superclass) {
+            return $this->superclass->findMethod($name);
         }
 
         return null;

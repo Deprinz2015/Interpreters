@@ -25,7 +25,7 @@ class GenAstCommand extends Command
         ],
         "Stmt" => [
             "Block      : Stmt[] statements",
-            "Class      : Token name, FunctionStmt[] methods",
+            "Class      : Token name, ?VariableExpr superclass, FunctionStmt[] methods",
             "Expression : Expr expression",
             "Function   : Token name, Token[] params, Stmt[] body",
             "If         : Expr condition, Stmt thenBranch, ?Stmt elseBranch",

@@ -147,6 +147,13 @@ class Resolver implements ExprVisitor, StmtVisitor
         $this->declare($stmt->name);
         $this->define($stmt->name);
 
+        if ($stmt->superclass) {
+            if ($stmt->superclass->name->lexeme === $stmt->name->lexeme) {
+                PloxCommand::errorToken($stmt->superclass->name, "A class cannot inherit from itself.");
+            }
+            $this->resolve($stmt->superclass);
+        }
+
         $this->beginScope();
         $scope = $this->scopes->pop();
         $scope["this"] = true;

@@ -202,6 +202,14 @@ class Interpreter implements ExprVisitor, StmtVisitor
 
     public function visitClassStmt(ClassStmt $stmt)
     {
+        $superclass = null;
+        if ($stmt->superclass) {
+            $superclass = $this->evaluate($stmt->superclass);
+            if (!$superclass instanceof LoxClass) {
+                throw new RuntimeError($stmt->superclass->name, "Superclass must be a class.");
+            }
+        }
+
         $this->environment->define($stmt->name->lexeme, null);
 
         $methods = [];
@@ -210,7 +218,7 @@ class Interpreter implements ExprVisitor, StmtVisitor
             $methods[$method->name->lexeme] = $function;
         }
 
-        $klass = new LoxClass($stmt->name->lexeme, $methods);
+        $klass = new LoxClass($stmt->name->lexeme, $superclass, $methods);
         $this->environment->assign($stmt->name, $klass);
     }
 
