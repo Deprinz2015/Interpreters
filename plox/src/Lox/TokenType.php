@@ -29,7 +29,7 @@ enum TokenType
 
     // Literals.
     case IDENTIFIER;
-    case STRING;
+    case STRING_LITERAL;
     case NUMBER;
 
     // Keywords.

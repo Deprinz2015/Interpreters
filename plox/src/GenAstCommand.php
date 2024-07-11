@@ -14,6 +14,8 @@ class GenAstCommand extends Command
             "Assign   : Token name, Expr value",
             "Binary   : Expr left, Token operator, Expr right",
             "Call     : Expr callee, Token paren, Expr[] arguments",
+            "Get      : Expr object, Token name",
+            "Set      : Expr object, Token name, Expr value",
             "Grouping : Expr expression",
             "Literal  : mixed value",
             "Logical  : Expr left, Token operator, Expr right",
@@ -22,6 +24,7 @@ class GenAstCommand extends Command
         ],
         "Stmt" => [
             "Block      : Stmt[] statements",
+            "Class      : Token name, FunctionStmt[] methods",
             "Expression : Expr expression",
             "Function   : Token name, Token[] params, Stmt[] body",
             "If         : Expr condition, Stmt thenBranch, ?Stmt elseBranch",
@@ -30,6 +33,8 @@ class GenAstCommand extends Command
             "While      : Expr condition, Stmt body",
         ],
     ];
+
+    private array $createdTypes = [];
 
     public function configure()
     {
@@ -107,11 +112,11 @@ interface {$basename}Visitor
     }
 
     /**
-     * @param string $outputDir 
-     * @param string $basename 
-     * @param string $classname 
-     * @param string $fields 
-     * @return void 
+     * @param string $outputDir
+     * @param string $basename
+     * @param string $classname
+     * @param string $fields
+     * @return void
      */
     private function defineType(string $outputDir, string $basename, string $classname, string $fields): void
     {
@@ -137,6 +142,18 @@ interface {$basename}Visitor
                 if (in_array($type, array_keys(self::asts))) {
                     $import = "$type\\$type";
                 }
+
+                foreach(array_keys(self::asts) as $nodeType) {
+                    if ($type === $nodeType) {
+                        $import = "$type\\$type";
+                        break;
+                    }
+
+                    if (str_ends_with($type, $nodeType)) {
+                        $import = "$nodeType\\$type";
+                    }
+                }
+
                 $neededTypes[] = $import;
             }
 
@@ -175,6 +192,7 @@ $fields
 }
 ";
 
+        $this->createdTypes[$classname] = $basename;
         file_put_contents($path, $content);
     }
 }

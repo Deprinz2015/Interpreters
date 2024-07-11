@@ -7,12 +7,15 @@ use Nkoll\Plox\Lox\Expr\AssignExpr;
 use Nkoll\Plox\Lox\Expr\BinaryExpr;
 use Nkoll\Plox\Lox\Expr\CallExpr;
 use Nkoll\Plox\Lox\Expr\Expr;
+use Nkoll\Plox\Lox\Expr\GetExpr;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\LogicalExpr;
+use Nkoll\Plox\Lox\Expr\SetExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
+use Nkoll\Plox\Lox\Stmt\ClassStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 use Nkoll\Plox\Lox\Stmt\IfStmt;
@@ -50,6 +53,9 @@ class Parser
     private function declaration(): ?Stmt
     {
         try {
+            if ($this->match(TokenType::CLASS_KEYWORD)) {
+                return $this->classDeclaration();
+            }
             if ($this->match(TokenType::FUN)) {
                 return $this->function('function');
             }
@@ -63,6 +69,19 @@ class Parser
 
             return null;
         }
+    }
+
+    private function classDeclaration(): Stmt {
+        $name = $this->consume(TokenType::IDENTIFIER, "Expect class name.");
+        $this->consume(TokenType::LEFT_BRACE, "Expect '{' before class body.");
+
+        $methods = [];
+        while(!$this->check(TokenType::RIGHT_BRACE) && !$this->isAtEnd()) {
+            $methods[] = $this->function('method');
+        }
+
+        $this->consume(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
+        return new ClassStmt($name, $methods);
     }
 
     private function varDeclaration(): Stmt
@@ -171,7 +190,8 @@ class Parser
         return $body;
     }
 
-    private function returnStatement(): Stmt {
+    private function returnStatement(): Stmt
+    {
         $keyword = $this->previous();
 
         $value = null;
@@ -242,9 +262,11 @@ class Parser
             $value = $this->assignment();
 
             if ($expr instanceof VariableExpr) {
-                $name = $expr->name;
+                return new AssignExpr($expr->name, $value);
+            }
 
-                return new AssignExpr($name, $value);
+            if ($expr instanceof GetExpr) {
+                return new SetExpr($expr->object, $expr->name, $value);
             }
 
             $this->error($equals, 'Invalid assignment target.');
@@ -365,7 +387,12 @@ class Parser
         while (true) {
             if ($this->match(TokenType::LEFT_PAREN)) {
                 $expr = $this->finishCall($expr);
-            } else {
+            }
+            else if ($this->match(TokenType::DOT)) {
+                $name = $this->consume(TokenType::IDENTIFIER, "Expect property name after '.'.");
+                $expr = new GetExpr($expr, $name);
+            }
+            else {
                 break;
             }
         }
@@ -385,7 +412,7 @@ class Parser
             return new LiteralExpr(null);
         }
 
-        if ($this->match(TokenType::NUMBER, TokenType::STRING)) {
+        if ($this->match(TokenType::NUMBER, TokenType::STRING_LITERAL)) {
             return new LiteralExpr($this->previous()->literal);
         }
 

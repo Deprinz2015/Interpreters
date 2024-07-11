@@ -17,7 +17,7 @@ class Scanner
 
     private const array keywords = [
         "and" => TokenType::AND,
-        "class" => TokenType::class,
+        "class" => TokenType::CLASS_KEYWORD,
         "else" => TokenType::ELSE,
         "false" => TokenType::FALSE,
         "for" => TokenType::FOR,
@@ -150,7 +150,7 @@ class Scanner
         $this->advance();
 
         $value = $this->substr($this->source, $this->start + 1, $this->current - 1);
-        $this->addToken(TokenType::STRING, $value);
+        $this->addToken(TokenType::STRING_LITERAL, $value);
     }
 
     private function number(): void

@@ -7,6 +7,8 @@ interface ExprVisitor
     public function visitAssignExpr(AssignExpr $expr);
     public function visitBinaryExpr(BinaryExpr $expr);
     public function visitCallExpr(CallExpr $expr);
+    public function visitGetExpr(GetExpr $expr);
+    public function visitSetExpr(SetExpr $expr);
     public function visitGroupingExpr(GroupingExpr $expr);
     public function visitLiteralExpr(LiteralExpr $expr);
     public function visitLogicalExpr(LogicalExpr $expr);

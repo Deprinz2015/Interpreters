@@ -8,12 +8,15 @@ use Nkoll\Plox\Lox\Expr\BinaryExpr;
 use Nkoll\Plox\Lox\Expr\CallExpr;
 use Nkoll\Plox\Lox\Expr\Expr;
 use Nkoll\Plox\Lox\Expr\ExprVisitor;
+use Nkoll\Plox\Lox\Expr\GetExpr;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\LogicalExpr;
+use Nkoll\Plox\Lox\Expr\SetExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
+use Nkoll\Plox\Lox\Stmt\ClassStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 use Nkoll\Plox\Lox\Stmt\IfStmt;
@@ -196,6 +199,13 @@ class Interpreter implements ExprVisitor, StmtVisitor
         $this->executeBlock($stmt->statements, new Environment($this->environment));
     }
 
+    public function visitClassStmt(ClassStmt $stmt)
+    {
+        $this->environment->define($stmt->name->lexeme, null);
+        $klass = new LoxClass($stmt->name->lexeme);
+        $this->environment->assign($stmt->name, $klass);
+    }
+
     public function visitAssignExpr(AssignExpr $expr)
     {
         $value = $this->evaluate($expr->value);
@@ -256,7 +266,7 @@ class Interpreter implements ExprVisitor, StmtVisitor
                     return $left + $right;
                 }
 
-                if (is_string($left) && is_string($right)) {
+                if (is_string($left) || is_string($right)) {
                     return "$left$right";
                 }
 
@@ -292,6 +302,16 @@ class Interpreter implements ExprVisitor, StmtVisitor
         return $callee->call($this, $args);
     }
 
+    public function visitGetExpr(GetExpr $expr)
+    {
+        $object = $this->evaluate($expr->object);
+        if ($object instanceof LoxInstance) {
+            return $object->get($expr->name);
+        }
+
+        throw new RuntimeError($expr->name, "Only instances have properties.");
+    }
+
     public function visitGroupingExpr(GroupingExpr $expr)
     {
         return $this->evaluate($expr->expression);
@@ -317,6 +337,19 @@ class Interpreter implements ExprVisitor, StmtVisitor
         }
 
         return $this->evaluate($expr->right);
+    }
+
+    public function visitSetExpr(SetExpr $expr)
+    {
+        $obj = $this->evaluate($expr->object);
+
+        if (!$obj instanceof LoxInstance) {
+            throw new RuntimeError($expr->name, "Only instances have fields.");
+        }
+
+        $value = $this->evaluate($expr->value);
+        $obj->set($expr->name, $value);
+        return $value;
     }
 
     public function visitUnaryExpr(UnaryExpr $expr)

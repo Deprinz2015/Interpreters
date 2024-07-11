@@ -109,7 +109,7 @@ class PloxCommand extends Command
 
     private static function report(int $line, string $where, string $msg): void
     {
-        echo "[line $line] Error $where: $msg" . PHP_EOL;
+        echo "[line $line] Error$where: $msg" . PHP_EOL;
         self::$hadError = true;
     }
 }

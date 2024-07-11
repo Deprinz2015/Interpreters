@@ -7,12 +7,15 @@ use Nkoll\Plox\Lox\Expr\BinaryExpr;
 use Nkoll\Plox\Lox\Expr\CallExpr;
 use Nkoll\Plox\Lox\Expr\Expr;
 use Nkoll\Plox\Lox\Expr\ExprVisitor;
+use Nkoll\Plox\Lox\Expr\GetExpr;
 use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\LogicalExpr;
+use Nkoll\Plox\Lox\Expr\SetExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
+use Nkoll\Plox\Lox\Stmt\ClassStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 use Nkoll\Plox\Lox\Stmt\IfStmt;
@@ -52,6 +55,11 @@ class Resolver implements ExprVisitor, StmtVisitor
         }
     }
 
+    public function visitGetExpr(GetExpr $expr)
+    {
+        $this->resolve($expr->object);
+    }
+
     public function visitGroupingExpr(GroupingExpr $expr)
     {
         $this->resolve($expr->expression);
@@ -66,6 +74,12 @@ class Resolver implements ExprVisitor, StmtVisitor
     {
         $this->resolve($expr->left);
         $this->resolve($expr->right);
+    }
+
+    public function visitSetExpr(SetExpr $expr)
+    {
+        $this->resolve($expr->object);
+        $this->resolve($expr->value);
     }
 
     public function visitUnaryExpr(UnaryExpr $expr)
@@ -109,6 +123,12 @@ class Resolver implements ExprVisitor, StmtVisitor
         $this->beginScope();
         $this->resolveAll($stmt->statements);
         $this->endScope();
+    }
+
+    public function visitClassStmt(ClassStmt $stmt)
+    {
+        $this->declare($stmt->name);
+        $this->define($stmt->name);
     }
 
     public function visitVarStmt(VarStmt $stmt)
