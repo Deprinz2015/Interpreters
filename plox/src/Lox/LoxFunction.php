@@ -12,6 +12,12 @@ class LoxFunction implements LoxCallable
     ) {
     }
 
+    public function bind(LoxInstance $instance): LoxFunction {
+        $env = new Environment($this->closure);
+        $env->define("this", $instance);
+        return new LoxFunction($this->declaration, $env);
+    }
+
     public function call(Interpreter $interpreter, array $arguments)
     {
         $env = new Environment($this->closure);

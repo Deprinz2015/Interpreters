@@ -1,0 +1,14 @@
+class Thing {
+  getCallback() {
+    fun localFunction() {
+      print(this.message);
+    }
+
+    return localFunction;
+  }
+}
+
+var thing = Thing();
+thing.message = "This works!";
+var callback = thing.getCallback();
+callback();

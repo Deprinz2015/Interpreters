@@ -13,6 +13,7 @@ use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\LogicalExpr;
 use Nkoll\Plox\Lox\Expr\SetExpr;
+use Nkoll\Plox\Lox\Expr\ThisExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
@@ -357,6 +358,11 @@ class Interpreter implements ExprVisitor, StmtVisitor
         $value = $this->evaluate($expr->value);
         $obj->set($expr->name, $value);
         return $value;
+    }
+
+    public function visitThisExpr(ThisExpr $expr)
+    {
+        return $this->lookupVariable($expr->keyword, $expr);
     }
 
     public function visitUnaryExpr(UnaryExpr $expr)

@@ -12,6 +12,7 @@ use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\LogicalExpr;
 use Nkoll\Plox\Lox\Expr\SetExpr;
+use Nkoll\Plox\Lox\Expr\ThisExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
@@ -32,6 +33,7 @@ class Resolver implements ExprVisitor, StmtVisitor
     private Interpreter $interpreter;
     private SplStack $scopes;
     private FunctionType $currentFunction = FunctionType::NONE;
+    private ClassType $currentClass = ClassType::NONE;
 
     public function __construct(Interpreter $interpreter)
     {
@@ -82,6 +84,15 @@ class Resolver implements ExprVisitor, StmtVisitor
         $this->resolve($expr->value);
     }
 
+    public function visitThisExpr(ThisExpr $expr)
+    {
+        if ($this->currentClass === ClassType::NONE) {
+            PloxCommand::errorToken($expr->keyword, "Can't use 'this' outside of a class.");
+            return;
+        }
+        $this->resolveLocal($expr, $expr->keyword);
+    }
+
     public function visitUnaryExpr(UnaryExpr $expr)
     {
         $this->resolve($expr->right);
@@ -127,13 +138,24 @@ class Resolver implements ExprVisitor, StmtVisitor
 
     public function visitClassStmt(ClassStmt $stmt)
     {
+        $enclosing = $this->currentClass;
+        $this->currentClass = ClassType::CLASS;
         $this->declare($stmt->name);
         $this->define($stmt->name);
+
+        $this->beginScope();
+        $scope = $this->scopes->pop();
+        $scope["this"] = true;
+        $this->scopes->push($scope);
 
         foreach($stmt->methods as $method) {
             $declaration = FunctionType::METHOD;
             $this->resolveFunction($method, $declaration);
         }
+
+        $this->endScope();
+
+        $this->currentClass = $enclosing;
     }
 
     public function visitVarStmt(VarStmt $stmt)

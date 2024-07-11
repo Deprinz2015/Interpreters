@@ -16,6 +16,7 @@ class GenAstCommand extends Command
             "Call     : Expr callee, Token paren, Expr[] arguments",
             "Get      : Expr object, Token name",
             "Set      : Expr object, Token name, Expr value",
+            "This     : Token keyword",
             "Grouping : Expr expression",
             "Literal  : mixed value",
             "Logical  : Expr left, Token operator, Expr right",

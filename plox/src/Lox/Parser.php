@@ -12,6 +12,7 @@ use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\LogicalExpr;
 use Nkoll\Plox\Lox\Expr\SetExpr;
+use Nkoll\Plox\Lox\Expr\ThisExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
@@ -71,7 +72,8 @@ class Parser
         }
     }
 
-    private function classDeclaration(): Stmt {
+    private function classDeclaration(): Stmt
+    {
         $name = $this->consume(TokenType::IDENTIFIER, "Expect class name.");
         $this->consume(TokenType::LEFT_BRACE, "Expect '{' before class body.");
 
@@ -387,12 +389,10 @@ class Parser
         while (true) {
             if ($this->match(TokenType::LEFT_PAREN)) {
                 $expr = $this->finishCall($expr);
-            }
-            else if ($this->match(TokenType::DOT)) {
+            } elseif ($this->match(TokenType::DOT)) {
                 $name = $this->consume(TokenType::IDENTIFIER, "Expect property name after '.'.");
                 $expr = new GetExpr($expr, $name);
-            }
-            else {
+            } else {
                 break;
             }
         }
@@ -402,6 +402,9 @@ class Parser
 
     private function primary(): Expr
     {
+        if ($this->match(TokenType::THIS)) {
+            return new ThisExpr($this->previous());
+        }
         if ($this->match(TokenType::FALSE)) {
             return new LiteralExpr(false);
         }
