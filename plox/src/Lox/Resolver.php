@@ -16,7 +16,6 @@ use Nkoll\Plox\Lox\Stmt\BlockStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 use Nkoll\Plox\Lox\Stmt\IfStmt;
-use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\ReturnStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
 use Nkoll\Plox\Lox\Stmt\StmtVisitor;
@@ -86,11 +85,6 @@ class Resolver implements ExprVisitor, StmtVisitor
         if ($stmt->elseBranch) {
             $this->resolve($stmt->elseBranch);
         }
-    }
-
-    public function visitPrintStmt(PrintStmt $stmt)
-    {
-        $this->resolve($stmt->expression);
     }
 
     public function visitReturnStmt(ReturnStmt $stmt)

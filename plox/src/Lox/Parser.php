@@ -16,7 +16,6 @@ use Nkoll\Plox\Lox\Stmt\BlockStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 use Nkoll\Plox\Lox\Stmt\IfStmt;
-use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\ReturnStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
 use Nkoll\Plox\Lox\Stmt\VarStmt;
@@ -92,10 +91,6 @@ class Parser
 
         if ($this->match(TokenType::FOR)) {
             return $this->forStatement();
-        }
-
-        if ($this->match(TokenType::PRINT)) {
-            return $this->printStatement();
         }
 
         if ($this->match(TokenType::RETURN)) {
@@ -174,14 +169,6 @@ class Parser
         }
 
         return $body;
-    }
-
-    private function printStatement(): Stmt
-    {
-        $expr = $this->expression();
-        $this->consume(TokenType::SEMICOLON, "Expect ';' after value.");
-
-        return new PrintStmt($expr);
     }
 
     private function returnStatement(): Stmt {
@@ -494,7 +481,6 @@ class Parser
                 case TokenType::FOR:
                 case TokenType::IF:
                 case TokenType::WHILE:
-                case TokenType::PRINT:
                 case TokenType::RETURN:
                     return;
             }

@@ -17,7 +17,6 @@ use Nkoll\Plox\Lox\Stmt\BlockStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;
 use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 use Nkoll\Plox\Lox\Stmt\IfStmt;
-use Nkoll\Plox\Lox\Stmt\PrintStmt;
 use Nkoll\Plox\Lox\Stmt\ReturnStmt;
 use Nkoll\Plox\Lox\Stmt\Stmt;
 use Nkoll\Plox\Lox\Stmt\StmtVisitor;
@@ -55,6 +54,28 @@ class Interpreter implements ExprVisitor, StmtVisitor
                 return "<native fn>";
             }
         });
+
+        $this->globals->define("print", new class ($this) implements LoxCallable {
+            public function __construct(
+                private Interpreter $outer
+            ) {
+            }
+
+            public function arity(): int
+            {
+                return 1;
+            }
+
+            public function call(Interpreter $interpreter, array $arguments)
+            {
+                echo $this->outer->stringify($arguments[0]) . PHP_EOL;
+            }
+
+            public function __toString()
+            {
+                return "<native fn>";
+            }
+        });
     }
 
     /**
@@ -72,7 +93,7 @@ class Interpreter implements ExprVisitor, StmtVisitor
         }
     }
 
-    private function stringify($value): string
+    public function stringify($value): string
     {
         if ($value === null) {
             return 'nil';
@@ -158,12 +179,6 @@ class Interpreter implements ExprVisitor, StmtVisitor
         } elseif ($stmt->elseBranch) {
             $this->execute($stmt->elseBranch);
         }
-    }
-
-    public function visitPrintStmt(PrintStmt $stmt)
-    {
-        echo $this->stringify($this->evaluate($stmt->expression));
-        echo PHP_EOL;
     }
 
     public function visitReturnStmt(ReturnStmt $stmt)

@@ -42,7 +42,6 @@ enum TokenType
     case IF;
     case NIL;
     case OR;
-    case PRINT;
     case RETURN;
     case SUPER;
     case THIS;
