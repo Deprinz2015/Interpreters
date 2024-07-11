@@ -202,7 +202,14 @@ class Interpreter implements ExprVisitor, StmtVisitor
     public function visitClassStmt(ClassStmt $stmt)
     {
         $this->environment->define($stmt->name->lexeme, null);
-        $klass = new LoxClass($stmt->name->lexeme);
+
+        $methods = [];
+        foreach ($stmt->methods as $method) {
+            $function = new LoxFunction($method, $this->environment);
+            $methods[$method->name->lexeme] = $function;
+        }
+
+        $klass = new LoxClass($stmt->name->lexeme, $methods);
         $this->environment->assign($stmt->name, $klass);
     }
 

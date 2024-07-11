@@ -129,6 +129,11 @@ class Resolver implements ExprVisitor, StmtVisitor
     {
         $this->declare($stmt->name);
         $this->define($stmt->name);
+
+        foreach($stmt->methods as $method) {
+            $declaration = FunctionType::METHOD;
+            $this->resolveFunction($method, $declaration);
+        }
     }
 
     public function visitVarStmt(VarStmt $stmt)

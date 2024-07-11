@@ -18,3 +18,11 @@ items.nametag = "Peter";
 print(items.nametag + " has...");
 print("..." + items.apple + " apples");
 print("..." + items.weapon + " as a weapon");
+
+class Bacon {
+  eat() {
+    print("Crunch crunch crunch!");
+  }
+}
+
+Bacon().eat(); // Prints "Crunch crunch crunch!".
