@@ -13,6 +13,7 @@ use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\LogicalExpr;
 use Nkoll\Plox\Lox\Expr\SetExpr;
+use Nkoll\Plox\Lox\Expr\SuperExpr;
 use Nkoll\Plox\Lox\Expr\ThisExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
@@ -212,6 +213,11 @@ class Interpreter implements ExprVisitor, StmtVisitor
 
         $this->environment->define($stmt->name->lexeme, null);
 
+        if ($stmt->superclass) {
+            $this->environment = new Environment($this->environment);
+            $this->environment->define("super", $superclass);
+        }
+
         $methods = [];
         foreach ($stmt->methods as $method) {
             $function = new LoxFunction($method, $this->environment, $method->name->lexeme === "init");
@@ -219,6 +225,11 @@ class Interpreter implements ExprVisitor, StmtVisitor
         }
 
         $klass = new LoxClass($stmt->name->lexeme, $superclass, $methods);
+
+        if ($stmt->superclass) {
+            $this->environment = $this->environment->enclosing;
+        }
+
         $this->environment->assign($stmt->name, $klass);
     }
 
@@ -366,6 +377,23 @@ class Interpreter implements ExprVisitor, StmtVisitor
         $value = $this->evaluate($expr->value);
         $obj->set($expr->name, $value);
         return $value;
+    }
+
+    public function visitSuperExpr(SuperExpr $expr)
+    {
+        $distance = $this->locals[$expr];
+        /** @var LoxClass */
+        $superclass = $this->environment->getAt($distance, "super");
+
+        $object = $this->environment->getAt($distance - 1, "this");
+
+        $method = $superclass->findMethod($expr->method->lexeme);
+
+        if (!$method) {
+            throw new RuntimeError($expr->method, "Undefined property '{$expr->method->lexeme}'.");
+        }
+
+        return $method->bind($object);
     }
 
     public function visitThisExpr(ThisExpr $expr)

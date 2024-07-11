@@ -4,11 +4,10 @@ namespace Nkoll\Plox\Lox;
 
 class LoxClass implements LoxCallable
 {
-
     /**
-     * @param string $name 
-     * @param array<string, LoxFunction> $methods 
-     * @return void 
+     * @param array<string, LoxFunction> $methods
+     *
+     * @return void
      */
     public function __construct(
         public string $name,
@@ -17,7 +16,8 @@ class LoxClass implements LoxCallable
     ) {
     }
 
-    public function findMethod(string $name) {
+    public function findMethod(string $name): ?LoxFunction
+    {
         if (key_exists($name, $this->methods)) {
             return $this->methods[$name];
         }
@@ -32,19 +32,21 @@ class LoxClass implements LoxCallable
     public function call(Interpreter $interpreter, array $arguments)
     {
         $instance = new LoxInstance($this);
-        $init = $this->findMethod("init");
+        $init = $this->findMethod('init');
         if ($init) {
             $init->bind($instance)->call($interpreter, $arguments);
         }
+
         return $instance;
     }
 
     public function arity(): int
     {
-        $init = $this->findMethod("init");
+        $init = $this->findMethod('init');
         if (!$init) {
             return 0;
         }
+
         return $init->arity();
     }
 

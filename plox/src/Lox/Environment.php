@@ -8,7 +8,7 @@ class Environment
 {
     /** @var array<string, mixed> */
     private array $values = [];
-    private ?Environment $enclosing;
+    public ?Environment $enclosing;
 
     public function __construct(?Environment $enclosing = null)
     {

@@ -12,6 +12,7 @@ use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\LogicalExpr;
 use Nkoll\Plox\Lox\Expr\SetExpr;
+use Nkoll\Plox\Lox\Expr\SuperExpr;
 use Nkoll\Plox\Lox\Expr\ThisExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
@@ -151,13 +152,15 @@ class Resolver implements ExprVisitor, StmtVisitor
             if ($stmt->superclass->name->lexeme === $stmt->name->lexeme) {
                 PloxCommand::errorToken($stmt->superclass->name, "A class cannot inherit from itself.");
             }
+            $this->currentClass = ClassType::SUBCLASS;
             $this->resolve($stmt->superclass);
+
+            $this->beginScope();
+            $this->defineLiterally("super");
         }
 
         $this->beginScope();
-        $scope = $this->scopes->pop();
-        $scope["this"] = true;
-        $this->scopes->push($scope);
+        $this->defineLiterally("this");
 
         foreach($stmt->methods as $method) {
             $declaration = FunctionType::METHOD;
@@ -168,8 +171,22 @@ class Resolver implements ExprVisitor, StmtVisitor
         }
 
         $this->endScope();
+        if ($stmt->superclass) {
+            $this->endScope();
+        }
 
         $this->currentClass = $enclosing;
+    }
+
+    public function visitSuperExpr(SuperExpr $expr)
+    {
+        if ($this->currentClass === ClassType::NONE) {
+            PloxCommand::errorToken($expr->keyword, "Can't use 'super' outside of a class.");
+        }
+        else if ($this->currentClass !== ClassType::SUBCLASS) {
+            PloxCommand::errorToken($expr->keyword, "Can't use 'super' in a class with no superclass.");
+        }
+        $this->resolveLocal($expr, $expr->keyword);
     }
 
     public function visitVarStmt(VarStmt $stmt)
@@ -266,12 +283,16 @@ class Resolver implements ExprVisitor, StmtVisitor
 
     private function define(Token $name)
     {
+        $this->defineLiterally($name->lexeme);
+    }
+
+    private function defineLiterally(string $name) {
         if ($this->scopes->isEmpty()) {
             return;
         }
 
         $scope = $this->scopes->pop();
-        $scope[$name->lexeme] = true;
+        $scope[$name] = true;
         $this->scopes->push($scope);
     }
 

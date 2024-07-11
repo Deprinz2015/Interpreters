@@ -12,6 +12,7 @@ use Nkoll\Plox\Lox\Expr\GroupingExpr;
 use Nkoll\Plox\Lox\Expr\LiteralExpr;
 use Nkoll\Plox\Lox\Expr\LogicalExpr;
 use Nkoll\Plox\Lox\Expr\SetExpr;
+use Nkoll\Plox\Lox\Expr\SuperExpr;
 use Nkoll\Plox\Lox\Expr\ThisExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
@@ -411,6 +412,12 @@ class Parser
     {
         if ($this->match(TokenType::THIS)) {
             return new ThisExpr($this->previous());
+        }
+        if ($this->match(TokenType::SUPER)) { 
+            $super = $this->previous();
+            $this->consume(TokenType::DOT, "Expect '.' after 'super'.");
+            $method = $this->consume(TokenType::IDENTIFIER, "Expect identifier after '.'.");
+            return new SuperExpr($super, $method);
         }
         if ($this->match(TokenType::FALSE)) {
             return new LiteralExpr(false);
