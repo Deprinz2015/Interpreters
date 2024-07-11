@@ -43,44 +43,9 @@ class Interpreter implements ExprVisitor, StmtVisitor
         $this->environment = $this->globals;
         $this->locals = new SplObjectStorage();
 
-        $this->globals->define("clock", new class () implements LoxCallable {
-            public function arity(): int
-            {
-                return 0;
-            }
-
-            public function call(Interpreter $interpreter, array $arguments)
-            {
-                return microtime(true);
-            }
-
-            public function __toString()
-            {
-                return "<native fn>";
-            }
-        });
-
-        $this->globals->define("print", new class ($this) implements LoxCallable {
-            public function __construct(
-                private Interpreter $outer
-            ) {
-            }
-
-            public function arity(): int
-            {
-                return 1;
-            }
-
-            public function call(Interpreter $interpreter, array $arguments)
-            {
-                echo $this->outer->stringify($arguments[0]) . PHP_EOL;
-            }
-
-            public function __toString()
-            {
-                return "<native fn>";
-            }
-        });
+        $this->globals->define("clock", NativeFunctions::clock());
+        $this->globals->define("print", NativeFunctions::print($this));
+        $this->globals->define("read", NativeFunctions::read());
     }
 
     /**

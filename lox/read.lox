@@ -1,0 +1,11 @@
+var age = read("How old are you? ");
+
+print("You are " + age + " Years old");
+
+if (age > 20) {
+    print("Fifth of a millenia. Feelin' old yet?");
+}
+
+if (age < 18) {
+    print("Ha, you can't even drive alone.");
+}
