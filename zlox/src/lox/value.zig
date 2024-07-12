@@ -7,34 +7,46 @@ pub const Value = f32;
 
 pub const ValueArray = struct {
     alloc: Allocator,
-    values: DynamicArray(Value),
+    capacity: u8,
+    count: u8,
+    values: []Value,
 
     pub fn init(alloc: Allocator) ValueArray {
-        var value_array: ValueArray = .{
+        return .{
             .alloc = alloc,
-            .values = undefined,
+            .values = &.{},
+            .count = 0,
+            .capacity = 0,
         };
-        value_array.values = DynamicArray(Value).init(value_array.alloc);
-        return value_array;
     }
 
-    pub fn write(self: *ValueArray, byte: Value) void {
-        // TODO: Add check if amount of values is not to big
-        self.values.write(byte);
+    pub fn write(self: *ValueArray, value: Value) void {
+        if (self.capacity < self.count + 1) {
+            self.growCapacity();
+            self.values = self.alloc.realloc(self.values, self.capacity) catch unreachable;
+        }
+
+        self.values[self.count] = value;
+        self.count += 1;
     }
 
-    pub fn at(self: *ValueArray, offset: usize) Value {
-        return self.values.entries[offset];
+    pub fn at(self: *ValueArray, offset: usize) f32 {
+        return self.values[offset];
     }
 
-    pub fn count(self: *ValueArray) u8 {
-        // TODO: Add check if amount of values is not to big
-        return @intCast(self.values.count);
-    }
-
-    /// Sets the value_array itself to undefined
+    /// Sets the chunk itself to undefined
     pub fn deinit(self: *ValueArray) void {
-        self.values.deinit();
+        self.alloc.free(self.values);
+        self.capacity = 0;
+        self.count = 0;
         self.* = undefined;
+    }
+
+    fn growCapacity(self: *ValueArray) void {
+        if (self.capacity < 8) {
+            self.capacity = 8;
+            return;
+        }
+        self.capacity *= 2;
     }
 };

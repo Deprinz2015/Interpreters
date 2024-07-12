@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [14.5](https://craftinginterpreters.com/chunks-of-bytecode.html#constants)
+Currently at Chapter [15](https://craftinginterpreters.com/a-virtual-machine.html)
 
 This Project will contain at least 2 implementations:
 
