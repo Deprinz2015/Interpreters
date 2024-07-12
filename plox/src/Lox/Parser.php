@@ -2,6 +2,7 @@
 
 namespace Nkoll\Plox\Lox;
 
+use Nkoll\Plox\Lox\Enums\TokenType;
 use Nkoll\Plox\Lox\Error\ParserError;
 use Nkoll\Plox\Lox\Expr\AssignExpr;
 use Nkoll\Plox\Lox\Expr\BinaryExpr;

@@ -1,6 +1,8 @@
 <?php
 
-namespace Nkoll\Plox\Lox;
+namespace Nkoll\Plox\Lox\LoxType;
+
+use Nkoll\Plox\Lox\Interpreter;
 
 interface LoxCallable 
 {

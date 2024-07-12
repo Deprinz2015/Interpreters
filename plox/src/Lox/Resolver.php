@@ -2,6 +2,8 @@
 
 namespace Nkoll\Plox\Lox;
 
+use Nkoll\Plox\Lox\Enums\ClassType;
+use Nkoll\Plox\Lox\Enums\FunctionType;
 use Nkoll\Plox\Lox\Expr\AssignExpr;
 use Nkoll\Plox\Lox\Expr\BinaryExpr;
 use Nkoll\Plox\Lox\Expr\CallExpr;

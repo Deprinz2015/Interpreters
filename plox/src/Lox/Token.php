@@ -2,6 +2,8 @@
 
 namespace Nkoll\Plox\Lox;
 
+use Nkoll\Plox\Lox\Enums\TokenType;
+
 class Token
 {
     public function __construct(

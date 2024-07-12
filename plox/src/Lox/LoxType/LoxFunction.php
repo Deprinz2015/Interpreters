@@ -1,7 +1,10 @@
 <?php
 
-namespace Nkoll\Plox\Lox;
+namespace Nkoll\Plox\Lox\LoxType;
 
+use Nkoll\Plox\Lox\Environment;
+use Nkoll\Plox\Lox\Interpreter;
+use Nkoll\Plox\Lox\ReturnValue;
 use Nkoll\Plox\Lox\Stmt\FunctionStmt;
 
 class LoxFunction implements LoxCallable

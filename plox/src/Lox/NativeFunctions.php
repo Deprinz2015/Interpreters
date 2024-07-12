@@ -2,6 +2,8 @@
 
 namespace Nkoll\Plox\Lox;
 
+use Nkoll\Plox\Lox\LoxType\LoxCallable;
+
 class NativeFunctions
 {
     public static function clock()

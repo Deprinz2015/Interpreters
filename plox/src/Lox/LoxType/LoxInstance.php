@@ -1,8 +1,9 @@
 <?php
 
-namespace Nkoll\Plox\Lox;
+namespace Nkoll\Plox\Lox\LoxType;
 
 use Nkoll\Plox\Lox\Error\RuntimeError;
+use Nkoll\Plox\Lox\Token;
 
 class LoxInstance
 {

@@ -2,6 +2,7 @@
 
 namespace Nkoll\Plox\Lox;
 
+use Nkoll\Plox\Lox\Enums\TokenType;
 use Nkoll\Plox\Lox\Error\RuntimeError;
 use Nkoll\Plox\Lox\Expr\AssignExpr;
 use Nkoll\Plox\Lox\Expr\BinaryExpr;
@@ -17,6 +18,10 @@ use Nkoll\Plox\Lox\Expr\SuperExpr;
 use Nkoll\Plox\Lox\Expr\ThisExpr;
 use Nkoll\Plox\Lox\Expr\UnaryExpr;
 use Nkoll\Plox\Lox\Expr\VariableExpr;
+use Nkoll\Plox\Lox\LoxType\LoxCallable;
+use Nkoll\Plox\Lox\LoxType\LoxClass;
+use Nkoll\Plox\Lox\LoxType\LoxFunction;
+use Nkoll\Plox\Lox\LoxType\LoxInstance;
 use Nkoll\Plox\Lox\Stmt\BlockStmt;
 use Nkoll\Plox\Lox\Stmt\ClassStmt;
 use Nkoll\Plox\Lox\Stmt\ExpressionStmt;

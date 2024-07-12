@@ -8,8 +8,6 @@ class ReturnValue extends Exception
 {
     public function __construct(
         public mixed $value,
-    )
-    {
-        
+    ) {
     }
 }

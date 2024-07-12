@@ -3,6 +3,7 @@
 namespace Nkoll\Plox\Lox;
 
 use IntlChar;
+use Nkoll\Plox\Lox\Enums\TokenType;
 use Nkoll\Plox\PloxCommand;
 
 class Scanner
