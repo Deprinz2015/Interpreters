@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [14.2](https://craftinginterpreters.com/chunks-of-bytecode.html#getting-started)
+Currently at Chapter [14.5](https://craftinginterpreters.com/chunks-of-bytecode.html#constants)
 
 This Project will contain at least 2 implementations:
 
