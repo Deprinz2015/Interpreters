@@ -11,6 +11,10 @@ pub fn main() void {
 
     var chunk = Chunk.init(alloc);
     defer chunk.deinit();
-    chunk.write(.OP_RETURN);
+    const constant = chunk.addConstant(1.2);
+    chunk.writeOpCode(.OP_CONSTANT);
+    chunk.writeByte(constant);
+
+    chunk.writeOpCode(.OP_RETURN);
     debug.disassembleChunk(&chunk, "test chunk");
 }
