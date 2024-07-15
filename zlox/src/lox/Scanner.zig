@@ -97,7 +97,7 @@ fn peek(self: *Scanner) ?u8 {
 }
 
 fn peekNext(self: *Scanner) ?u8 {
-    if (self.current < self.source.len - 1) {
+    if (self.current >= self.source.len - 1) {
         return null;
     }
     return self.source[self.current + 1];
