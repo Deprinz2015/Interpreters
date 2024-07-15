@@ -16,7 +16,7 @@ pub fn compile(source: []const u8) !void {
             try StdOut.writeAll("   | ");
         }
 
-        try StdOut.writer().print("{} '{s}'", .{ token.token_type, token.start[0..token.length] });
+        try StdOut.writer().print("{} '{s}'\n", .{ token.token_type, token.start[0..token.length] });
 
         if (token.token_type == .EOF) {
             break;

@@ -50,6 +50,8 @@ fn repl(alloc: Allocator) !void {
             try StdOut.writeAll("\n");
             break;
         }
+
+        _ = vm.interpret(input);
     }
 }
 

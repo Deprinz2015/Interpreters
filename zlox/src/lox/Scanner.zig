@@ -17,6 +17,7 @@ pub fn init(source: []const u8) Scanner {
 }
 
 pub fn scanToken(self: *Scanner) Token {
+    self.skipWhitespace();
     self.start = self.current;
 
     if (self.isAtEnd()) {
@@ -88,12 +89,15 @@ fn advanceWithValue(self: *Scanner) u8 {
     return self.source[self.current - 1];
 }
 
-fn peek(self: *Scanner) u8 {
+fn peek(self: *Scanner) ?u8 {
+    if (self.isAtEnd()) {
+        return null;
+    }
     return self.source[self.current];
 }
 
 fn peekNext(self: *Scanner) ?u8 {
-    if (self.isAtEnd()) {
+    if (self.current < self.source.len - 1) {
         return null;
     }
     return self.source[self.current + 1];
@@ -129,8 +133,7 @@ fn errorToken(self: *Scanner, msg: []const u8) Token {
 }
 
 fn skipWhitespace(self: *Scanner) void {
-    while (true) {
-        const c = self.peek();
+    while (self.peek()) |c| {
         switch (c) {
             ' ', '\t', '\r' => self.advance(),
             '\n' => {
@@ -168,14 +171,17 @@ fn string(self: *Scanner) Token {
 }
 
 fn number(self: *Scanner) Token {
-    while (isDigit(self.peek())) {
+    while (!self.isAtEnd() and isDigit(self.peek().?)) {
         self.advance();
     }
 
     if (self.peek() == '.' and self.peekNext() != null and isDigit(self.peekNext().?)) {
         self.advance();
 
-        while (isDigit(self.peek())) {
+        while (self.peek()) |c| {
+            if (!isDigit(c)) {
+                break;
+            }
             self.advance();
         }
     }
@@ -184,7 +190,10 @@ fn number(self: *Scanner) Token {
 }
 
 fn identifier(self: *Scanner) Token {
-    while (isAlpha(self.peek()) or isDigit(self.peek())) {
+    while (self.peek()) |c| {
+        if (!isAlpha(c) and !isDigit(c)) {
+            break;
+        }
         self.advance();
     }
 
@@ -192,7 +201,52 @@ fn identifier(self: *Scanner) Token {
 }
 
 fn identifierType(self: *Scanner) TokenType {
-    _ = self;
+    switch (self.source[self.start]) {
+        'a' => return self.checkKeyword(1, 2, "nd", .AND),
+        'c' => return self.checkKeyword(1, 4, "lass", .CLASS),
+        'e' => return self.checkKeyword(1, 3, "lse", .ELSE),
+        'i' => return self.checkKeyword(1, 1, "f", .IF),
+        'n' => return self.checkKeyword(1, 2, "il", .NIL),
+        'o' => return self.checkKeyword(1, 1, "r", .OR),
+        'p' => return self.checkKeyword(1, 4, "rint", .PRINT),
+        'r' => return self.checkKeyword(1, 5, "eturn", .RETURN),
+        's' => return self.checkKeyword(1, 4, "uper", .SUPER),
+        'v' => return self.checkKeyword(1, 2, "ar", .VAR),
+        'w' => return self.checkKeyword(1, 4, "hile", .WHILE),
+        'f' => {
+            if (self.current - self.start > 1) {
+                switch (self.source[self.start + 1]) {
+                    'a' => return self.checkKeyword(2, 3, "lse", .FALSE),
+                    'o' => return self.checkKeyword(2, 1, "r", .FOR),
+                    'u' => return self.checkKeyword(2, 1, "n", .FUN),
+                    else => {},
+                }
+            }
+        },
+        't' => {
+            if (self.current - self.start > 1) {
+                switch (self.source[self.start + 1]) {
+                    'h' => return self.checkKeyword(2, 2, "is", .THIS),
+                    'r' => return self.checkKeyword(2, 2, "ue", .TRUE),
+                    else => {},
+                }
+            }
+        },
+        else => {},
+    }
+
+    return .IDENTIFIER;
+}
+
+fn checkKeyword(self: *Scanner, offset_from_start: usize, length: usize, rest: []const u8, token_type: TokenType) TokenType {
+    const str_start = self.start + offset_from_start;
+    const str_end = str_start + length;
+    if (self.current == str_end) {
+        const source = self.source[str_start..str_end];
+        if (std.mem.eql(u8, source, rest)) {
+            return token_type;
+        }
+    }
     return .IDENTIFIER;
 }
 
