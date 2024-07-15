@@ -6,6 +6,7 @@ const STACK_MAX = 256;
 const Chunk = @import("Chunk.zig");
 const OpCode = Chunk.OpCode;
 const Value = @import("value.zig").Value;
+const Compiler = @import("Compiler.zig");
 const debug = @import("debug.zig");
 
 const VM = @This();
@@ -40,10 +41,14 @@ pub fn deinit(self: *VM) void {
     _ = self;
 }
 
-pub fn interpret(self: *VM, chunk: *Chunk) InterpreterResult {
-    self.chunk = chunk;
-    self.ip = 0;
-    return self.run();
+pub fn interpret(self: *VM, source: []const u8) InterpreterResult {
+    const StdErr = std.io.getStdErr();
+    _ = self;
+    Compiler.compile(source) catch {
+        StdErr.writeAll("Compiler Error\n") catch {};
+        return .COMPILE_ERROR;
+    };
+    return .OK;
 }
 
 fn run(self: *VM) InterpreterResult {

@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [16](https://craftinginterpreters.com/scanning-on-demand.html)
+Currently at Chapter [16.4.1](https://craftinginterpreters.com/scanning-on-demand.html#tries-and-state-machines)
 
 This Project will contain at least 2 implementations:
 
