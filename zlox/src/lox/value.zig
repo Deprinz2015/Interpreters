@@ -1,8 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const DynamicArray = @import("containers.zig").DynamicArray;
-
 pub const Value = f32;
 
 pub const ValueArray = struct {

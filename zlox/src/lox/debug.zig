@@ -21,8 +21,13 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
     }
 
     return switch (chunk.opAt(offset)) {
-        .OP_RETURN => simpleInstruction("OP_RETURN", offset),
-        .OP_CONSTANT => constantInstruction("OP_CONSTANT", chunk, offset),
+        .RETURN => simpleInstruction("OP_RETURN", offset),
+        .CONSTANT => constantInstruction("OP_CONSTANT", chunk, offset),
+        .NEGATE => simpleInstruction("OP_NEGATE", offset),
+        .ADD => simpleInstruction("OP_ADD", offset),
+        .SUBTRACT => simpleInstruction("OP_SUBTRACT", offset),
+        .MULTIPLY => simpleInstruction("OP_MULTIPLY", offset),
+        .DIVIDE => simpleInstruction("OP_DIVIDE", offset),
     };
 }
 
@@ -39,6 +44,6 @@ fn constantInstruction(name: []const u8, chunk: *Chunk, offset: usize) usize {
     return offset + 2;
 }
 
-fn printValue(value: Value) void {
+pub fn printValue(value: Value) void {
     std.debug.print("{d}", .{value});
 }

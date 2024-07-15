@@ -1,14 +1,18 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const DynamicArray = @import("containers.zig").DynamicArray;
 const ValueArray = @import("value.zig").ValueArray;
 const Value = @import("value.zig").Value;
 
 const Chunk = @This();
 
 pub const OpCode = enum(u8) {
-    OP_RETURN,
-    OP_CONSTANT,
+    RETURN,
+    CONSTANT,
+    NEGATE,
+    ADD,
+    SUBTRACT,
+    MULTIPLY,
+    DIVIDE,
 };
 
 code: []u8,
