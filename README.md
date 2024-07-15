@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [17](https://craftinginterpreters.com/compiling-expressions.html)
+Currently at Chapter [17.2.1](https://craftinginterpreters.com/compiling-expressions.html#handling-syntax-errors)
 
 This Project will contain at least 2 implementations:
 

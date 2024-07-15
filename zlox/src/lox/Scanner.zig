@@ -258,7 +258,7 @@ fn isAlpha(c: u8) bool {
     return std.ascii.isAlphabetic(c) or c == '_';
 }
 
-const Token = struct {
+pub const Token = struct {
     token_type: TokenType,
     start: [*]const u8,
     length: usize,

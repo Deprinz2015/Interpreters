@@ -42,13 +42,16 @@ pub fn deinit(self: *VM) void {
 }
 
 pub fn interpret(self: *VM, source: []const u8) InterpreterResult {
-    const StdErr = std.io.getStdErr();
-    _ = self;
-    Compiler.compile(source) catch {
-        StdErr.writeAll("Compiler Error\n") catch {};
+    var chunk = Compiler.compile(source) catch {
         return .COMPILE_ERROR;
     };
-    return .OK;
+    defer chunk.deinit();
+
+    self.chunk = chunk;
+    self.ip = 0;
+
+    const result = self.run();
+    return result;
 }
 
 fn run(self: *VM) InterpreterResult {

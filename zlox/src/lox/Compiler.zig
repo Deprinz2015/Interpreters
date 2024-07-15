@@ -2,24 +2,29 @@ const std = @import("std");
 const StdOut = std.io.getStdOut();
 
 const Scanner = @import("Scanner.zig");
+const Chunk = @import("Chunk.zig");
+const Token = @import("Scanner.zig").Token;
 
-pub fn compile(source: []const u8) !void {
-    var scanner = Scanner.init(source);
+const Parser = struct {
+    current: Token,
+    previous: Token,
+    scanner: Scanner,
 
-    var line: usize = undefined;
-    while (true) {
-        const token = scanner.scanToken();
-        if (token.line != line) {
-            try StdOut.writer().print("{d: <4} ", .{token.line});
-            line = token.line;
-        } else {
-            try StdOut.writeAll("   | ");
-        }
+    fn advance(self: *Parser) void {
+        self.previous = self.current;
+        while (true) {
+            self.current = self.scanner.scanToken();
 
-        try StdOut.writer().print("{} '{s}'\n", .{ token.token_type, token.start[0..token.length] });
+            if (self.current.token_type != .ERROR) {
+                break;
+            }
 
-        if (token.token_type == .EOF) {
-            break;
+            self.errorAtCurrent(self.current.start);
         }
     }
+};
+
+pub fn compile(source: []const u8) !Chunk {
+    var scanner = Scanner.init(source);
+    var parser: Parser = .{ .current = undefined, .previous = undefined, .scanner = scanner };
 }
