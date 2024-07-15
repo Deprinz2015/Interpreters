@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [15](https://craftinginterpreters.com/a-virtual-machine.html)
+Currently at Chapter [16](https://craftinginterpreters.com/scanning-on-demand.html)
 
 This Project will contain at least 2 implementations:
 
