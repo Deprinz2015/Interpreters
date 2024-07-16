@@ -75,17 +75,17 @@ const Parser = struct {
         .{ @tagName(TokenType.AND), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.CLASS), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.ELSE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.FALSE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.FALSE), .{ .prefix = literal, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.FOR), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.FUN), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.IF), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.NIL), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.NIL), .{ .prefix = literal, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.OR), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.PRINT), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.RETURN), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.SUPER), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.THIS), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.TRUE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.TRUE), .{ .prefix = literal, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.VAR), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.WHILE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.ERROR), .{ .prefix = null, .infix = null, .precedence = .NONE } },
@@ -118,12 +118,21 @@ const Parser = struct {
         self.parsePrecedence(.ASSIGNMENT);
     }
 
+    fn literal(self: *Parser) void {
+        switch (self.previous.token_type) {
+            .TRUE => self.emitByte(.{ .OPCODE = .TRUE }),
+            .FALSE => self.emitByte(.{ .OPCODE = .FALSE }),
+            .NIL => self.emitByte(.{ .OPCODE = .NIL }),
+            else => unreachable,
+        }
+    }
+
     fn number(self: *Parser) void {
         const value = std.fmt.parseFloat(f32, self.previousLexeme()) catch {
             std.debug.print("Could not parse a float value from string '{s}'\n", .{self.previousLexeme()});
             unreachable;
         };
-        self.emitConstant(value);
+        self.emitConstant(.{ .NUMBER = value });
     }
 
     fn unary(self: *Parser) void {

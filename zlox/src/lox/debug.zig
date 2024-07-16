@@ -23,6 +23,9 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
     return switch (chunk.opAt(offset)) {
         .RETURN => simpleInstruction("OP_RETURN", offset),
         .CONSTANT => constantInstruction("OP_CONSTANT", chunk, offset),
+        .TRUE => simpleInstruction("OP_TRUE", offset),
+        .FALSE => simpleInstruction("OP_FALSE", offset),
+        .NIL => simpleInstruction("OP_NIL", offset),
         .NEGATE => simpleInstruction("OP_NEGATE", offset),
         .ADD => simpleInstruction("OP_ADD", offset),
         .SUBTRACT => simpleInstruction("OP_SUBTRACT", offset),
@@ -38,12 +41,6 @@ fn simpleInstruction(instruction: []const u8, offset: usize) usize {
 
 fn constantInstruction(name: []const u8, chunk: *Chunk, offset: usize) usize {
     const constant = chunk.byteAt(offset + 1);
-    std.debug.print("{s: <16} {d: <4}'", .{ name, constant });
-    printValue(chunk.constantAt(constant));
-    std.debug.print("'\n", .{});
+    std.debug.print("{s: <16} {d: <4}' {}'\n", .{ name, constant, chunk.constantAt(constant) });
     return offset + 2;
-}
-
-pub fn printValue(value: Value) void {
-    std.debug.print("{d}", .{value});
 }

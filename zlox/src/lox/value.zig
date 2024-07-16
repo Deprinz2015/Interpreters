@@ -1,7 +1,19 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-pub const Value = f32;
+pub const Value = union(enum) {
+    BOOL: bool,
+    NUMBER: f32,
+    NIL: void,
+
+    pub fn format(value: Value, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (value) {
+            .NUMBER => try writer.print("{d}", .{value.NUMBER}),
+            .BOOL => try writer.writeAll(if (value.BOOL) "true" else "false"),
+            .NIL => try writer.writeAll("nil"),
+        }
+    }
+};
 
 pub const ValueArray = struct {
     alloc: Allocator,
@@ -28,7 +40,7 @@ pub const ValueArray = struct {
         self.count += 1;
     }
 
-    pub fn at(self: *ValueArray, offset: usize) f32 {
+    pub fn at(self: *ValueArray, offset: usize) Value {
         return self.values[offset];
     }
 

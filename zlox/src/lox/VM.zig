@@ -26,6 +26,7 @@ const BinaryOperation = enum {
     DIVIDE,
 };
 
+had_error: bool = false,
 chunk: *Chunk = undefined,
 ip: usize = 0,
 stack: [STACK_MAX]Value = .{undefined} ** STACK_MAX,
@@ -61,9 +62,7 @@ fn run(self: *VM) InterpreterResult {
                 if (i >= self.stack_top) {
                     break;
                 }
-                std.debug.print("[ ", .{});
-                debug.printValue(slot);
-                std.debug.print(" ]", .{});
+                std.debug.print("[ {} ]", .{slot});
             }
             std.debug.print("\n", .{});
             _ = debug.disassembleInstruction(self.chunk, self.ip);
@@ -73,25 +72,40 @@ fn run(self: *VM) InterpreterResult {
         const instruction: OpCode = @enumFromInt(byte);
         switch (instruction) {
             .RETURN => {
-                debug.printValue(self.pop());
-                std.debug.print("\n", .{});
+                std.debug.print("{}\n", .{self.pop()});
                 return .OK;
             },
             .CONSTANT => {
                 const constant = self.readConstant();
                 self.push(constant);
             },
+            .NIL => self.push(.NIL),
+            .TRUE => self.push(.{ .BOOL = true }),
+            .FALSE => self.push(.{ .BOOL = false }),
             .NEGATE => {
-                self.push(-self.pop());
+                if (self.peek(0) != .NUMBER) {
+                    self.runtimeError("Operand must be a number.", .{});
+                    break;
+                }
+                const value = self.pop().NUMBER;
+                self.push(.{ .NUMBER = -value });
             },
             .ADD => self.binaryOp(.ADD),
             .SUBTRACT => self.binaryOp(.SUBTRACT),
             .MULTIPLY => self.binaryOp(.MULTIPLY),
             .DIVIDE => self.binaryOp(.DIVIDE),
         }
+
+        if (self.had_error) {
+            return .RUNTIME_ERROR;
+        }
     }
 
     return .OK;
+}
+
+fn resetStack(self: *VM) void {
+    self.stack_top = 0;
 }
 
 fn push(self: *VM, value: Value) void {
@@ -102,6 +116,10 @@ fn push(self: *VM, value: Value) void {
 fn pop(self: *VM) Value {
     self.stack_top -= 1;
     return self.stack[self.stack_top];
+}
+
+fn peek(self: *VM, index: usize) Value {
+    return self.stack[self.stack_top - index];
 }
 
 fn readByte(self: *VM) u8 {
@@ -115,13 +133,29 @@ fn readConstant(self: *VM) Value {
 }
 
 fn binaryOp(self: *VM, op: BinaryOperation) void {
-    const b = self.pop();
-    const a = self.pop();
+    if (self.peek(0) != .NUMBER or self.peek(1) != .NUMBER) {
+        self.runtimeError("Operands must be numbers.", .{});
+        return;
+    }
+
+    const b = self.pop().NUMBER;
+    const a = self.pop().NUMBER;
     const result = switch (op) {
         .ADD => a + b,
         .SUBTRACT => a - b,
         .MULTIPLY => a * b,
         .DIVIDE => a / b,
     };
-    self.push(result);
+    self.push(.{ .NUMBER = result });
+}
+
+fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) void {
+    const StdErr = std.io.getStdErr();
+    StdErr.writer().print(format, args) catch {};
+    StdErr.writer().writeByte('\n') catch {};
+
+    const line = self.chunk.lines[self.ip - 1];
+    StdErr.writer().print("[line {d}] in script\n", .{line}) catch {};
+    self.resetStack();
+    self.had_error = true;
 }
