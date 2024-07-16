@@ -1,4 +1,4 @@
-const DEBUG_PRINT_CODE = true;
+const DEBUG_PRINT_CODE = @import("config").chunk_trace;
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;

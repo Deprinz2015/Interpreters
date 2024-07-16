@@ -1,4 +1,4 @@
-const DEBUG_TRACE_EXECUTION = false;
+const DEBUG_TRACE_EXECUTION = @import("config").stack_trace;
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -29,14 +29,10 @@ const BinaryOperation = enum {
 chunk: *Chunk = undefined,
 ip: usize = 0,
 stack: [STACK_MAX]Value = .{undefined} ** STACK_MAX,
-stack_top: [*]Value,
+stack_top: usize,
 
 pub fn init() VM {
-    var vm: VM = .{
-        .stack_top = undefined,
-    };
-    vm.stack_top = &vm.stack;
-    return vm;
+    return .{ .stack_top = 0 };
 }
 
 pub fn deinit(self: *VM) void {
@@ -61,7 +57,10 @@ fn run(self: *VM) InterpreterResult {
     while (true) {
         if (comptime DEBUG_TRACE_EXECUTION) {
             std.debug.print("          ", .{});
-            for (self.stack) |slot| {
+            for (self.stack, 0..) |slot, i| {
+                if (i >= self.stack_top) {
+                    break;
+                }
                 std.debug.print("[ ", .{});
                 debug.printValue(slot);
                 std.debug.print(" ]", .{});
@@ -96,13 +95,13 @@ fn run(self: *VM) InterpreterResult {
 }
 
 fn push(self: *VM, value: Value) void {
-    self.stack_top[0] = value;
+    self.stack[self.stack_top] = value;
     self.stack_top += 1;
 }
 
 fn pop(self: *VM) Value {
     self.stack_top -= 1;
-    return self.stack_top[0];
+    return self.stack[self.stack_top];
 }
 
 fn readByte(self: *VM) u8 {
