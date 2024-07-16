@@ -51,7 +51,7 @@ fn repl(alloc: Allocator) !void {
             break;
         }
 
-        _ = vm.interpret(input);
+        _ = vm.interpret(alloc, input);
     }
 }
 
@@ -73,7 +73,7 @@ fn runFile(alloc: Allocator, path: []const u8) !u8 {
     };
     defer alloc.free(source);
 
-    const result = vm.interpret(source);
+    const result = vm.interpret(alloc, source);
 
     if (result == .COMPILE_ERROR) {
         return 65;

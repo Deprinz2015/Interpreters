@@ -1,6 +1,8 @@
-const std = @import("std");
-
 const DEBUG_TRACE_EXECUTION = false;
+
+const std = @import("std");
+const Allocator = std.mem.Allocator;
+
 const STACK_MAX = 256;
 
 const Chunk = @import("Chunk.zig");
@@ -41,13 +43,14 @@ pub fn deinit(self: *VM) void {
     _ = self;
 }
 
-pub fn interpret(self: *VM, source: []const u8) InterpreterResult {
-    var chunk = Compiler.compile(source) catch {
+pub fn interpret(self: *VM, alloc: Allocator, source: []const u8) InterpreterResult {
+    var chunk = Chunk.init(alloc);
+    defer chunk.deinit();
+    Compiler.compile(source, &chunk) catch {
         return .COMPILE_ERROR;
     };
-    defer chunk.deinit();
 
-    self.chunk = chunk;
+    self.chunk = &chunk;
     self.ip = 0;
 
     const result = self.run();

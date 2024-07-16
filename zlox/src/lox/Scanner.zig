@@ -265,7 +265,7 @@ pub const Token = struct {
     line: usize,
 };
 
-const TokenType = enum {
+pub const TokenType = enum {
     // Single-character tokens.
     LEFT_PAREN,
     RIGHT_PAREN,

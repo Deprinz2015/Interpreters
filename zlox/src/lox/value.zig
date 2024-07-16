@@ -5,8 +5,8 @@ pub const Value = f32;
 
 pub const ValueArray = struct {
     alloc: Allocator,
-    capacity: u8,
-    count: u8,
+    capacity: usize,
+    count: usize,
     values: []Value,
 
     pub fn init(alloc: Allocator) ValueArray {

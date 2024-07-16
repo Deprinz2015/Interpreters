@@ -51,7 +51,15 @@ pub fn writeOpCode(self: *Chunk, byte: OpCode, line: usize) void {
     self.writeByte(@intFromEnum(byte), line);
 }
 
-pub fn addConstant(self: *Chunk, value: Value) u8 {
+pub fn write(self: *Chunk, comptime raw: bool, byte: (if (raw) u8 else OpCode), line: usize) void {
+    if (raw) {
+        self.writeByte(byte, line);
+    } else {
+        self.writeOpCode(byte, line);
+    }
+}
+
+pub fn addConstant(self: *Chunk, value: Value) usize {
     self.constants.write(value);
     return self.constants.count - 1;
 }
