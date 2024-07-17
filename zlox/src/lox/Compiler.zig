@@ -61,14 +61,14 @@ const Parser = struct {
         .{ @tagName(TokenType.SEMICOLON), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.SLASH), .{ .prefix = null, .infix = binary, .precedence = .FACTOR } },
         .{ @tagName(TokenType.STAR), .{ .prefix = null, .infix = binary, .precedence = .FACTOR } },
-        .{ @tagName(TokenType.BANG), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.BANG_EQUAL), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.BANG), .{ .prefix = unary, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.BANG_EQUAL), .{ .prefix = null, .infix = binary, .precedence = .EQUALITY } },
         .{ @tagName(TokenType.EQUAL), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.EQUAL_EQUAL), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.GREATER), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.GREATER_EQUAL), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.LESS), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.LESS_EQUAL), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.EQUAL_EQUAL), .{ .prefix = null, .infix = binary, .precedence = .EQUALITY } },
+        .{ @tagName(TokenType.GREATER), .{ .prefix = null, .infix = binary, .precedence = .COMPARISON } },
+        .{ @tagName(TokenType.GREATER_EQUAL), .{ .prefix = null, .infix = binary, .precedence = .COMPARISON } },
+        .{ @tagName(TokenType.LESS), .{ .prefix = null, .infix = binary, .precedence = .COMPARISON } },
+        .{ @tagName(TokenType.LESS_EQUAL), .{ .prefix = null, .infix = binary, .precedence = .COMPARISON } },
         .{ @tagName(TokenType.IDENTIFIER), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.STRING), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.NUMBER), .{ .prefix = number, .infix = null, .precedence = .NONE } },
@@ -142,6 +142,7 @@ const Parser = struct {
 
         switch (token_type) {
             .MINUS => self.emitByte(.{ .OPCODE = .NEGATE }),
+            .BANG => self.emitByte(.{ .OPCODE = .NOT }),
             else => unreachable,
         }
     }
@@ -156,6 +157,12 @@ const Parser = struct {
             .MINUS => self.emitByte(.{ .OPCODE = .SUBTRACT }),
             .STAR => self.emitByte(.{ .OPCODE = .MULTIPLY }),
             .SLASH => self.emitByte(.{ .OPCODE = .DIVIDE }),
+            .EQUAL_EQUAL => self.emitByte(.{ .OPCODE = .EQUAL }),
+            .LESS => self.emitByte(.{ .OPCODE = .LESS }),
+            .GREATER => self.emitByte(.{ .OPCODE = .GREATER }),
+            .BANG_EQUAL => self.emitBytes(.{ .OPCODE = .EQUAL }, .{ .OPCODE = .NOT }),
+            .LESS_EQUAL => self.emitBytes(.{ .OPCODE = .GREATER }, .{ .OPCODE = .NOT }),
+            .GREATER_EQUAL => self.emitBytes(.{ .OPCODE = .LESS }, .{ .OPCODE = .NOT }),
             else => unreachable,
         }
     }

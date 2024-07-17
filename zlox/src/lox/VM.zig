@@ -90,10 +90,13 @@ fn run(self: *VM) InterpreterResult {
                 const value = self.pop().NUMBER;
                 self.push(.{ .NUMBER = -value });
             },
-            .ADD => self.binaryOp(.ADD),
-            .SUBTRACT => self.binaryOp(.SUBTRACT),
-            .MULTIPLY => self.binaryOp(.MULTIPLY),
-            .DIVIDE => self.binaryOp(.DIVIDE),
+            .ADD, .SUBTRACT, .MULTIPLY, .DIVIDE, .LESS, .GREATER => |op| self.binaryOp(op),
+            .NOT => self.push(.{ .BOOL = isFalsey(self.pop()) }),
+            .EQUAL => {
+                const b = self.pop();
+                const a = self.pop();
+                self.push(.{ .BOOL = valuesEqual(a, b) });
+            },
         }
 
         if (self.had_error) {
@@ -132,21 +135,48 @@ fn readConstant(self: *VM) Value {
     return self.chunk.constants.at(self.readByte());
 }
 
-fn binaryOp(self: *VM, op: BinaryOperation) void {
+fn binaryOp(self: *VM, op: OpCode) void {
     if (self.peek(0) != .NUMBER or self.peek(1) != .NUMBER) {
-        self.runtimeError("Operands must be numbers.", .{});
+        self.runtimeError("Operands must be numbers. '{}' and '{}'", .{ self.peek(0), self.peek(1) });
         return;
     }
 
     const b = self.pop().NUMBER;
     const a = self.pop().NUMBER;
-    const result = switch (op) {
-        .ADD => a + b,
-        .SUBTRACT => a - b,
-        .MULTIPLY => a * b,
-        .DIVIDE => a / b,
+    const result: Value = switch (op) {
+        .ADD => .{ .NUMBER = a + b },
+        .SUBTRACT => .{ .NUMBER = a - b },
+        .MULTIPLY => .{ .NUMBER = a * b },
+        .DIVIDE => .{ .NUMBER = a / b },
+        .LESS => .{ .BOOL = a < b },
+        .GREATER => .{ .BOOL = a > b },
+        else => unreachable,
     };
-    self.push(.{ .NUMBER = result });
+    self.push(result);
+}
+
+fn isFalsey(value: Value) bool {
+    if (value == .NIL) {
+        return true;
+    }
+
+    if (value == .BOOL) {
+        return !value.BOOL;
+    }
+
+    return false;
+}
+
+fn valuesEqual(a: Value, b: Value) bool {
+    if (std.meta.activeTag(a) != std.meta.activeTag(b)) {
+        return false;
+    }
+
+    return switch (a) {
+        .NIL => true,
+        .BOOL => a.BOOL == b.BOOL,
+        .NUMBER => a.NUMBER == b.NUMBER,
+    };
 }
 
 fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) void {
