@@ -43,7 +43,7 @@ pub fn deinit(self: *VM) void {
 pub fn interpret(self: *VM, alloc: Allocator, source: []const u8) InterpreterResult {
     var chunk = Chunk.init(alloc);
     defer chunk.deinit();
-    Compiler.compile(source, &chunk) catch {
+    Compiler.compile(alloc, source, &chunk) catch {
         return .COMPILE_ERROR;
     };
 
@@ -177,6 +177,22 @@ fn valuesEqual(a: Value, b: Value) bool {
         .NIL => true,
         .BOOL => a.BOOL == b.BOOL,
         .NUMBER => a.NUMBER == b.NUMBER,
+        .OBJ => switch (a.OBJ.obj_type) {
+            .STRING => {
+                if (b.OBJ.obj_type != .STRING) {
+                    return false;
+                }
+
+                const str_a = a.OBJ.as.STRING;
+                const str_b = b.OBJ.as.STRING;
+
+                if (str_a.length != str_b.length) {
+                    return false;
+                }
+
+                return std.mem.eql(u8, str_a.chars[0..str_a.length], str_b.chars[0..str_b.length]);
+            },
+        },
     };
 }
 

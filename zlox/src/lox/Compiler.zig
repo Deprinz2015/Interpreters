@@ -8,6 +8,7 @@ const StdErr = std.io.getStdErr();
 const Scanner = @import("Scanner.zig");
 const Chunk = @import("Chunk.zig");
 const Value = @import("value.zig").Value;
+const Obj = @import("value.zig").Obj;
 const Token = @import("Scanner.zig").Token;
 const TokenType = @import("Scanner.zig").TokenType;
 
@@ -22,6 +23,7 @@ const Parser = struct {
     compiling_chunk: *Chunk,
     had_error: bool = false,
     panic_mode: bool = false,
+    alloc: Allocator,
 
     const EmittingByte = union(enum) {
         OPCODE: Chunk.OpCode,
@@ -70,7 +72,7 @@ const Parser = struct {
         .{ @tagName(TokenType.LESS), .{ .prefix = null, .infix = binary, .precedence = .COMPARISON } },
         .{ @tagName(TokenType.LESS_EQUAL), .{ .prefix = null, .infix = binary, .precedence = .COMPARISON } },
         .{ @tagName(TokenType.IDENTIFIER), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.STRING), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.STRING), .{ .prefix = string, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.NUMBER), .{ .prefix = number, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.AND), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.CLASS), .{ .prefix = null, .infix = null, .precedence = .NONE } },
@@ -133,6 +135,11 @@ const Parser = struct {
             unreachable;
         };
         self.emitConstant(.{ .NUMBER = value });
+    }
+
+    fn string(self: *Parser) void {
+        const previous = self.previousLexeme();
+        self.emitConstant(.{ .OBJ = Obj.copyString(self.alloc, previous[1 .. previous.len - 1]) });
     }
 
     fn unary(self: *Parser) void {
@@ -269,13 +276,14 @@ const Parser = struct {
     }
 };
 
-pub fn compile(source: []const u8, chunk: *Chunk) Error!void {
+pub fn compile(alloc: Allocator, source: []const u8, chunk: *Chunk) Error!void {
     const scanner = Scanner.init(source);
     var parser: Parser = .{
         .current = undefined,
         .previous = undefined,
         .scanner = scanner,
         .compiling_chunk = chunk,
+        .alloc = alloc,
     };
 
     parser.advance();
