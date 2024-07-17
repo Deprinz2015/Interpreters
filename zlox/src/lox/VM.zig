@@ -100,6 +100,7 @@ fn run(self: *VM) InterpreterResult {
         }
 
         if (self.had_error) {
+            self.had_error = false;
             return .RUNTIME_ERROR;
         }
     }
@@ -122,7 +123,7 @@ fn pop(self: *VM) Value {
 }
 
 fn peek(self: *VM, index: usize) Value {
-    return self.stack[self.stack_top - index];
+    return self.stack[self.stack_top - index - 1];
 }
 
 fn readByte(self: *VM) u8 {
