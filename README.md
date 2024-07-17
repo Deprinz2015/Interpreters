@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [19](https://craftinginterpreters.com/strings.html)
+Currently at Chapter [19.2](https://craftinginterpreters.com/strings.html#operations-on-strings)
 
 This Project will contain at least 2 implementations:
 
