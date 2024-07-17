@@ -3,7 +3,7 @@ const Allocator = std.mem.Allocator;
 
 pub const Value = union(enum) {
     BOOL: bool,
-    NUMBER: f32,
+    NUMBER: f64,
     NIL: void,
 
     pub fn format(value: Value, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
