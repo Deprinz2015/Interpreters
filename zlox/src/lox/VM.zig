@@ -58,7 +58,7 @@ fn freeObject(self: *VM, obj: *Obj) void {
     switch (obj.as) {
         .STRING => {
             const str = obj.as.STRING;
-            self.alloc.free(str.chars[0..str.length]);
+            self.alloc.free(str.string());
             self.alloc.destroy(str);
             self.alloc.destroy(obj);
         },
@@ -199,7 +199,7 @@ fn concat(self: *VM) void {
     const str_b = self.pop().OBJ.as.STRING;
     const str_a = self.pop().OBJ.as.STRING;
 
-    const chars = std.mem.concat(self.alloc, u8, &[_][]const u8{ str_a.chars[0..str_a.length], str_b.chars[0..str_b.length] }) catch unreachable;
+    const chars = std.mem.concat(self.alloc, u8, &[_][]const u8{ str_a.string(), str_b.string() }) catch unreachable;
     const result = Obj.takeString(self.alloc, chars, self);
     self.push(.{ .OBJ = result });
 }
@@ -238,7 +238,7 @@ fn valuesEqual(a: Value, b: Value) bool {
                     return false;
                 }
 
-                return std.mem.eql(u8, str_a.chars[0..str_a.length], str_b.chars[0..str_b.length]);
+                return std.mem.eql(u8, str_a.string(), str_b.string());
             },
         },
     };

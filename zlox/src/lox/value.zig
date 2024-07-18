@@ -15,6 +15,10 @@ pub const Obj = struct {
         obj: *Obj,
         length: usize,
         chars: [*]const u8,
+
+        pub fn string(self: *String) []const u8 {
+            return self.chars[0..self.length];
+        }
     };
 
     pub fn copyString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
@@ -69,7 +73,7 @@ pub const Value = union(enum) {
             .OBJ => |obj| switch (obj.as) {
                 .STRING => {
                     const str = obj.as.STRING;
-                    try writer.print("{s}", .{str.chars[0..str.length]});
+                    try writer.print("{s}", .{str.string()});
                 },
             },
         }
