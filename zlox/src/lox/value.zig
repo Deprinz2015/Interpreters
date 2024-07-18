@@ -22,12 +22,23 @@ pub const Obj = struct {
     };
 
     pub fn copyString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
+        const interned = vm.strings.get(chars);
+        if (interned) |_| {
+            return interned.?.obj;
+        }
+
         const heap_string = alloc.alloc(u8, chars.len) catch unreachable;
         @memcpy(heap_string, chars);
         return createString(alloc, heap_string.ptr, heap_string.len, vm);
     }
 
     pub fn takeString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
+        const maybe_interned = vm.strings.get(chars);
+        if (maybe_interned) |interned| {
+            alloc.free(chars);
+            return interned.obj;
+        }
+
         return createString(alloc, chars.ptr, chars.len, vm);
     }
 
@@ -36,6 +47,8 @@ pub const Obj = struct {
         obj_string.chars = string;
         obj_string.length = length;
         const obj = createObj(alloc, .{ .STRING = obj_string }, vm);
+        obj_string.obj = obj;
+        vm.strings.put(obj_string.string(), obj_string) catch unreachable;
         return obj;
     }
 

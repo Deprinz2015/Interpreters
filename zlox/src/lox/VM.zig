@@ -30,6 +30,7 @@ const BinaryOperation = enum {
 had_error: bool = false,
 chunk: *Chunk = undefined,
 objects: ?*Obj = null,
+strings: std.StringHashMap(*Obj.String),
 ip: usize = 0,
 stack: [STACK_MAX]Value = .{undefined} ** STACK_MAX,
 stack_top: usize,
@@ -39,11 +40,13 @@ pub fn init(alloc: Allocator) VM {
     return .{
         .stack_top = 0,
         .alloc = alloc,
+        .strings = std.StringHashMap(*Obj.String).init(alloc),
     };
 }
 
 pub fn deinit(self: *VM) void {
     self.deinitObjects();
+    self.strings.deinit();
 }
 
 fn deinitObjects(self: *VM) void {
@@ -177,7 +180,7 @@ fn readConstant(self: *VM) Value {
 
 fn binaryOp(self: *VM, op: OpCode) void {
     if (self.peek(0) != .NUMBER or self.peek(1) != .NUMBER) {
-        self.runtimeError("Operands must be numbers. '{}' and '{}'", .{ self.peek(0), self.peek(1) });
+        self.runtimeError("Operands must be numbers. '{}' and '{}'", .{ self.peek(1), self.peek(0) });
         return;
     }
 
@@ -233,12 +236,7 @@ fn valuesEqual(a: Value, b: Value) bool {
 
                 const str_a = a.OBJ.as.STRING;
                 const str_b = b.OBJ.as.STRING;
-
-                if (str_a.length != str_b.length) {
-                    return false;
-                }
-
-                return std.mem.eql(u8, str_a.string(), str_b.string());
+                return str_a == str_b;
             },
         },
     };

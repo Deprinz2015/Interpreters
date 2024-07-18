@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [20.4](https://craftinginterpreters.com/hash-tables.html#building-a-hash-table)
+Currently at Chapter [21](https://craftinginterpreters.com/global-variables.html)
 
 This Project will contain at least 2 implementations:
 
