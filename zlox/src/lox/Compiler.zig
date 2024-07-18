@@ -7,6 +7,7 @@ const StdErr = std.io.getStdErr();
 
 const Scanner = @import("Scanner.zig");
 const Chunk = @import("Chunk.zig");
+const VM = @import("VM.zig");
 const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;
 const Token = @import("Scanner.zig").Token;
@@ -23,6 +24,7 @@ const Parser = struct {
     compiling_chunk: *Chunk,
     had_error: bool = false,
     panic_mode: bool = false,
+    vm: *VM,
     alloc: Allocator,
 
     const EmittingByte = union(enum) {
@@ -139,7 +141,7 @@ const Parser = struct {
 
     fn string(self: *Parser) void {
         const previous = self.previousLexeme();
-        self.emitConstant(.{ .OBJ = Obj.copyString(self.alloc, previous[1 .. previous.len - 1]) });
+        self.emitConstant(.{ .OBJ = Obj.copyString(self.alloc, previous[1 .. previous.len - 1], self.vm) });
     }
 
     fn unary(self: *Parser) void {
@@ -276,7 +278,7 @@ const Parser = struct {
     }
 };
 
-pub fn compile(alloc: Allocator, source: []const u8, chunk: *Chunk) Error!void {
+pub fn compile(alloc: Allocator, vm: *VM, source: []const u8, chunk: *Chunk) Error!void {
     const scanner = Scanner.init(source);
     var parser: Parser = .{
         .current = undefined,
@@ -284,6 +286,7 @@ pub fn compile(alloc: Allocator, source: []const u8, chunk: *Chunk) Error!void {
         .scanner = scanner,
         .compiling_chunk = chunk,
         .alloc = alloc,
+        .vm = vm,
     };
 
     parser.advance();

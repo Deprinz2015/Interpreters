@@ -1,14 +1,14 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-pub const Obj = struct {
-    as: union(Type) {
-        STRING: *String,
-    },
-    obj_type: Type,
+const VM = @import("VM.zig");
 
-    pub const Type = enum(u8) {
-        STRING,
+pub const Obj = struct {
+    as: Type,
+    next: ?*Obj,
+
+    pub const Type = union(enum) {
+        STRING: *String,
     };
 
     pub const String = packed struct {
@@ -17,27 +17,36 @@ pub const Obj = struct {
         chars: [*]const u8,
     };
 
-    pub fn copyString(alloc: Allocator, chars: []const u8) *Obj {
+    pub fn copyString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
         const heap_string = alloc.alloc(u8, chars.len) catch unreachable;
         @memcpy(heap_string, chars);
-        return createString(alloc, heap_string.ptr, heap_string.len);
+        return createString(alloc, heap_string.ptr, heap_string.len, vm);
     }
 
-    fn createString(alloc: Allocator, string: [*]const u8, length: usize) *Obj {
-        const obj = createObj(alloc, .STRING);
+    pub fn takeString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
+        return createString(alloc, chars.ptr, chars.len, vm);
+    }
+
+    fn createString(alloc: Allocator, string: [*]const u8, length: usize, vm: *VM) *Obj {
         const obj_string = alloc.create(String) catch unreachable;
         obj_string.chars = string;
         obj_string.length = length;
-        obj.as = .{ .STRING = obj_string };
+        const obj = createObj(alloc, .{ .STRING = obj_string }, vm);
         return obj;
     }
 
-    fn createObj(alloc: Allocator, obj_type: Obj.Type) *Obj {
-        const alignment = switch (obj_type) {
-            .STRING => @alignOf(String),
-        };
-        const obj align(alignment) = alloc.create(Obj) catch unreachable;
-        obj.*.obj_type = obj_type;
+    fn createObj(alloc: Allocator, concrete_obj: Type, vm: *VM) *Obj {
+        const obj = alloc.create(Obj) catch unreachable;
+        obj.as = concrete_obj;
+        obj.next = null;
+
+        if (vm.objects == null) {
+            vm.objects = obj;
+        } else {
+            obj.next = vm.objects;
+            vm.objects = obj;
+        }
+
         return obj;
     }
 };
@@ -48,8 +57,8 @@ pub const Value = union(enum) {
     NIL: void,
     OBJ: *Obj,
 
-    pub inline fn isObjType(value: *Value, obj_type: Obj.Type) bool {
-        return value.* == .OBJ and value.OBJ.obj_type == obj_type;
+    pub inline fn isObjType(value: Value, obj_type: std.meta.Tag(Obj.Type)) bool {
+        return value == .OBJ and value.OBJ.as == obj_type;
     }
 
     pub fn format(value: Value, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
@@ -57,7 +66,7 @@ pub const Value = union(enum) {
             .NUMBER => try writer.print("{d}", .{value.NUMBER}),
             .BOOL => try writer.writeAll(if (value.BOOL) "true" else "false"),
             .NIL => try writer.writeAll("nil"),
-            .OBJ => |obj| switch (obj.obj_type) {
+            .OBJ => |obj| switch (obj.as) {
                 .STRING => {
                     const str = obj.as.STRING;
                     try writer.print("{s}", .{str.chars[0..str.length]});

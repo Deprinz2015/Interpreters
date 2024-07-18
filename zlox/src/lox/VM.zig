@@ -8,6 +8,7 @@ const STACK_MAX = 256;
 const Chunk = @import("Chunk.zig");
 const OpCode = Chunk.OpCode;
 const Value = @import("value.zig").Value;
+const Obj = @import("value.zig").Obj;
 const Compiler = @import("Compiler.zig");
 const debug = @import("debug.zig");
 
@@ -28,22 +29,46 @@ const BinaryOperation = enum {
 
 had_error: bool = false,
 chunk: *Chunk = undefined,
+objects: ?*Obj = null,
 ip: usize = 0,
 stack: [STACK_MAX]Value = .{undefined} ** STACK_MAX,
 stack_top: usize,
+alloc: Allocator,
 
-pub fn init() VM {
-    return .{ .stack_top = 0 };
+pub fn init(alloc: Allocator) VM {
+    return .{
+        .stack_top = 0,
+        .alloc = alloc,
+    };
 }
 
 pub fn deinit(self: *VM) void {
-    _ = self;
+    self.deinitObjects();
+}
+
+fn deinitObjects(self: *VM) void {
+    while (self.objects) |obj| {
+        const next = obj.next;
+        self.freeObject(obj);
+        self.objects = next;
+    }
+}
+
+fn freeObject(self: *VM, obj: *Obj) void {
+    switch (obj.as) {
+        .STRING => {
+            const str = obj.as.STRING;
+            self.alloc.free(str.chars[0..str.length]);
+            self.alloc.destroy(str);
+            self.alloc.destroy(obj);
+        },
+    }
 }
 
 pub fn interpret(self: *VM, alloc: Allocator, source: []const u8) InterpreterResult {
     var chunk = Chunk.init(alloc);
     defer chunk.deinit();
-    Compiler.compile(alloc, source, &chunk) catch {
+    Compiler.compile(alloc, self, source, &chunk) catch {
         return .COMPILE_ERROR;
     };
 
@@ -90,7 +115,21 @@ fn run(self: *VM) InterpreterResult {
                 const value = self.pop().NUMBER;
                 self.push(.{ .NUMBER = -value });
             },
-            .ADD, .SUBTRACT, .MULTIPLY, .DIVIDE, .LESS, .GREATER => |op| self.binaryOp(op),
+            .ADD => add: {
+                if (self.peek(0) == .NUMBER and self.peek(1) == .NUMBER) {
+                    self.binaryOp(.ADD);
+                    break :add;
+                }
+
+                if (Value.isObjType(self.peek(0), .STRING) and Value.isObjType(self.peek(1), .STRING)) {
+                    self.concat();
+                    break :add;
+                }
+
+                self.runtimeError("Operands must be two numbers or two strings.", .{});
+                break;
+            },
+            .SUBTRACT, .MULTIPLY, .DIVIDE, .LESS, .GREATER => |op| self.binaryOp(op),
             .NOT => self.push(.{ .BOOL = isFalsey(self.pop()) }),
             .EQUAL => {
                 const b = self.pop();
@@ -156,6 +195,15 @@ fn binaryOp(self: *VM, op: OpCode) void {
     self.push(result);
 }
 
+fn concat(self: *VM) void {
+    const str_b = self.pop().OBJ.as.STRING;
+    const str_a = self.pop().OBJ.as.STRING;
+
+    const chars = std.mem.concat(self.alloc, u8, &[_][]const u8{ str_a.chars[0..str_a.length], str_b.chars[0..str_b.length] }) catch unreachable;
+    const result = Obj.takeString(self.alloc, chars, self);
+    self.push(.{ .OBJ = result });
+}
+
 fn isFalsey(value: Value) bool {
     if (value == .NIL) {
         return true;
@@ -177,9 +225,9 @@ fn valuesEqual(a: Value, b: Value) bool {
         .NIL => true,
         .BOOL => a.BOOL == b.BOOL,
         .NUMBER => a.NUMBER == b.NUMBER,
-        .OBJ => switch (a.OBJ.obj_type) {
+        .OBJ => switch (a.OBJ.as) {
             .STRING => {
-                if (b.OBJ.obj_type != .STRING) {
+                if (b.OBJ.as != .STRING) {
                     return false;
                 }
 

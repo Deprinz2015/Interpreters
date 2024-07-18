@@ -17,7 +17,7 @@ pub fn main() !u8 {
     defer std.debug.assert(gpa.deinit() == .ok);
     const alloc = gpa.allocator();
 
-    vm = VM.init();
+    vm = VM.init(alloc);
     defer vm.deinit();
 
     const args = try std.process.argsAlloc(alloc);
