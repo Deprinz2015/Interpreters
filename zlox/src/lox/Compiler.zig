@@ -118,8 +118,49 @@ const Parser = struct {
         self.emitErrorAtCurrent(msg);
     }
 
+    fn match(self: *Parser, token_type: TokenType) bool {
+        if (!self.check(token_type)) {
+            return false;
+        }
+
+        self.advance();
+        return true;
+    }
+
+    fn check(self: *Parser, token_type: TokenType) bool {
+        return self.current.token_type == token_type;
+    }
+
     fn expression(self: *Parser) void {
         self.parsePrecedence(.ASSIGNMENT);
+    }
+
+    fn declaration(self: *Parser) void {
+        self.statement();
+
+        if (self.panic_mode) {
+            self.synchronize();
+        }
+    }
+
+    fn statement(self: *Parser) void {
+        if (self.match(.PRINT)) {
+            self.printStatement();
+        } else {
+            self.expressionStatement();
+        }
+    }
+
+    fn printStatement(self: *Parser) void {
+        self.expression();
+        self.consume(.SEMICOLON, "Expect ';' after value.");
+        self.emitByte(.{ .OPCODE = .PRINT });
+    }
+
+    fn expressionStatement(self: *Parser) void {
+        self.expression();
+        self.consume(.SEMICOLON, "Expect ';' after value.");
+        self.emitByte(.{ .OPCODE = .POP });
     }
 
     fn literal(self: *Parser) void {
@@ -276,6 +317,22 @@ const Parser = struct {
         try StdErr.writer().print(": {s}\n", .{msg});
         self.had_error = true;
     }
+
+    fn synchronize(self: *Parser) void {
+        self.panic_mode = false;
+
+        while (self.current.token_type != .EOF) {
+            if (self.previous.token_type == .SEMICOLON) {
+                return;
+            }
+
+            switch (self.current.token_type) {
+                .CLASS, .FUN, .VAR, .FOR, .IF, .WHILE, .PRINT, .RETURN => return,
+                else => {},
+            }
+            self.advance();
+        }
+    }
 };
 
 pub fn compile(alloc: Allocator, vm: *VM, source: []const u8, chunk: *Chunk) Error!void {
@@ -290,8 +347,9 @@ pub fn compile(alloc: Allocator, vm: *VM, source: []const u8, chunk: *Chunk) Err
     };
 
     parser.advance();
-    parser.expression();
-    parser.consume(.EOF, "Expect end of expression.");
+    while (!parser.match(.EOF)) {
+        parser.declaration();
+    }
     endCompiler(&parser);
 
     if (parser.had_error) {

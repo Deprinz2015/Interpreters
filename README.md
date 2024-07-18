@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [21](https://craftinginterpreters.com/global-variables.html)
+Currently at Chapter [21.2](https://craftinginterpreters.com/global-variables.html#variable-declarations)
 
 This Project will contain at least 2 implementations:
 

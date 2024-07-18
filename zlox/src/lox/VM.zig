@@ -2,6 +2,7 @@ const DEBUG_TRACE_EXECUTION = @import("config").stack_trace;
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const StdOut = std.io.getStdOut();
 
 const STACK_MAX = 256;
 
@@ -99,8 +100,9 @@ fn run(self: *VM) InterpreterResult {
         const byte = self.readByte();
         const instruction: OpCode = @enumFromInt(byte);
         switch (instruction) {
+            .PRINT => StdOut.writer().print("{}\n", .{self.pop()}) catch unreachable,
+            .POP => _ = self.pop(),
             .RETURN => {
-                std.debug.print("{}\n", .{self.pop()});
                 return .OK;
             },
             .CONSTANT => {

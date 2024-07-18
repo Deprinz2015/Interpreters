@@ -7,6 +7,8 @@ const Chunk = @This();
 
 pub const OpCode = enum(u8) {
     RETURN,
+    PRINT,
+    POP,
     CONSTANT,
     TRUE,
     FALSE,

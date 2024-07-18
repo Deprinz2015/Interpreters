@@ -22,6 +22,8 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
 
     return switch (chunk.opAt(offset)) {
         .RETURN => simpleInstruction("OP_RETURN", offset),
+        .PRINT => simpleInstruction("OP_PRINT", offset),
+        .POP => simpleInstruction("OP_POP", offset),
         .CONSTANT => constantInstruction("OP_CONSTANT", chunk, offset),
         .TRUE => simpleInstruction("OP_TRUE", offset),
         .FALSE => simpleInstruction("OP_FALSE", offset),
