@@ -73,7 +73,7 @@ const Parser = struct {
         .{ @tagName(TokenType.GREATER_EQUAL), .{ .prefix = null, .infix = binary, .precedence = .COMPARISON } },
         .{ @tagName(TokenType.LESS), .{ .prefix = null, .infix = binary, .precedence = .COMPARISON } },
         .{ @tagName(TokenType.LESS_EQUAL), .{ .prefix = null, .infix = binary, .precedence = .COMPARISON } },
-        .{ @tagName(TokenType.IDENTIFIER), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.IDENTIFIER), .{ .prefix = variable, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.STRING), .{ .prefix = string, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.NUMBER), .{ .prefix = number, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.AND), .{ .prefix = null, .infix = null, .precedence = .NONE } },
@@ -136,11 +136,28 @@ const Parser = struct {
     }
 
     fn declaration(self: *Parser) void {
-        self.statement();
+        if (self.match(.VAR)) {
+            self.varDeclaration();
+        } else {
+            self.statement();
+        }
 
         if (self.panic_mode) {
             self.synchronize();
         }
+    }
+
+    fn varDeclaration(self: *Parser) void {
+        const global = self.parseVariable("Expect variable name.");
+
+        if (self.match(.EQUAL)) {
+            self.expression();
+        } else {
+            self.emitByte(.{ .OPCODE = .NIL });
+        }
+        self.consume(.SEMICOLON, "Expect ';' after variable declaration.");
+
+        self.defineVariable(global);
     }
 
     fn statement(self: *Parser) void {
@@ -183,6 +200,15 @@ const Parser = struct {
     fn string(self: *Parser) void {
         const previous = self.previousLexeme();
         self.emitConstant(.{ .OBJ = Obj.copyString(self.alloc, previous[1 .. previous.len - 1], self.vm) });
+    }
+
+    fn variable(self: *Parser) void {
+        self.namedVariables(self.previous);
+    }
+
+    fn namedVariables(self: *Parser, name: Token) void {
+        const arg = self.identifierConstant(name);
+        self.emitBytes(.{ .OPCODE = .GET_GLOBAL }, .{ .RAW = arg });
     }
 
     fn unary(self: *Parser) void {
@@ -236,6 +262,19 @@ const Parser = struct {
                 infix(self);
             }
         }
+    }
+
+    fn parseVariable(self: *Parser, err_msg: []const u8) u8 {
+        self.consume(.IDENTIFIER, err_msg);
+        return self.identifierConstant(self.previous);
+    }
+
+    fn identifierConstant(self: *Parser, name: Token) u8 {
+        return self.makeConstant(.{ .OBJ = Obj.copyString(self.alloc, name.start[0..name.length], self.vm) });
+    }
+
+    fn defineVariable(self: *Parser, global: u8) void {
+        self.emitBytes(.{ .OPCODE = .DEFINE_GLOBAL }, .{ .RAW = global });
     }
 
     fn getRule(token_type: TokenType) ParseRule {

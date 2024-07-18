@@ -9,6 +9,8 @@ pub const OpCode = enum(u8) {
     RETURN,
     PRINT,
     POP,
+    DEFINE_GLOBAL,
+    GET_GLOBAL,
     CONSTANT,
     TRUE,
     FALSE,

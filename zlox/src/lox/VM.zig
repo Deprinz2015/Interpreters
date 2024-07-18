@@ -32,6 +32,7 @@ had_error: bool = false,
 chunk: *Chunk = undefined,
 objects: ?*Obj = null,
 strings: std.StringHashMap(*Obj.String),
+globals: std.StringHashMap(Value),
 ip: usize = 0,
 stack: [STACK_MAX]Value = .{undefined} ** STACK_MAX,
 stack_top: usize,
@@ -42,12 +43,14 @@ pub fn init(alloc: Allocator) VM {
         .stack_top = 0,
         .alloc = alloc,
         .strings = std.StringHashMap(*Obj.String).init(alloc),
+        .globals = std.StringHashMap(Value).init(alloc),
     };
 }
 
 pub fn deinit(self: *VM) void {
     self.deinitObjects();
     self.strings.deinit();
+    self.globals.deinit();
 }
 
 fn deinitObjects(self: *VM) void {
@@ -102,6 +105,20 @@ fn run(self: *VM) InterpreterResult {
         switch (instruction) {
             .PRINT => StdOut.writer().print("{}\n", .{self.pop()}) catch unreachable,
             .POP => _ = self.pop(),
+            .DEFINE_GLOBAL => {
+                const name = self.readConstant().OBJ.as.STRING;
+                self.globals.put(name.string(), self.peek(0)) catch unreachable;
+                _ = self.pop();
+            },
+            .GET_GLOBAL => add: {
+                const name = self.readConstant().OBJ.as.STRING;
+                const value = self.globals.get(name.string());
+                if (value == null) {
+                    self.runtimeError("Undefined variable '{s}'.", .{name.string()});
+                    break :add;
+                }
+                self.push(value.?);
+            },
             .RETURN => {
                 return .OK;
             },
