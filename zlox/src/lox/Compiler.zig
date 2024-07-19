@@ -46,7 +46,10 @@ const Parser = struct {
         PRIMARY,
     };
 
-    const ParseFn = *const fn (self: *Parser) void;
+    const ParseArguments = struct {
+        can_assign: bool = false,
+    };
+    const ParseFn = *const fn (self: *Parser, arguments: ParseArguments) void;
     const ParseRule = struct {
         prefix: ?ParseFn,
         infix: ?ParseFn,
@@ -180,7 +183,7 @@ const Parser = struct {
         self.emitByte(.{ .OPCODE = .POP });
     }
 
-    fn literal(self: *Parser) void {
+    fn literal(self: *Parser, _: ParseArguments) void {
         switch (self.previous.token_type) {
             .TRUE => self.emitByte(.{ .OPCODE = .TRUE }),
             .FALSE => self.emitByte(.{ .OPCODE = .FALSE }),
@@ -189,7 +192,7 @@ const Parser = struct {
         }
     }
 
-    fn number(self: *Parser) void {
+    fn number(self: *Parser, _: ParseArguments) void {
         const value = std.fmt.parseFloat(f32, self.previousLexeme()) catch {
             std.debug.print("Could not parse a float value from string '{s}'\n", .{self.previousLexeme()});
             unreachable;
@@ -197,21 +200,27 @@ const Parser = struct {
         self.emitConstant(.{ .NUMBER = value });
     }
 
-    fn string(self: *Parser) void {
+    fn string(self: *Parser, _: ParseArguments) void {
         const previous = self.previousLexeme();
         self.emitConstant(.{ .OBJ = Obj.copyString(self.alloc, previous[1 .. previous.len - 1], self.vm) });
     }
 
-    fn variable(self: *Parser) void {
-        self.namedVariables(self.previous);
+    fn variable(self: *Parser, arguments: ParseArguments) void {
+        self.namedVariables(self.previous, arguments.can_assign);
     }
 
-    fn namedVariables(self: *Parser, name: Token) void {
+    fn namedVariables(self: *Parser, name: Token, can_assign: bool) void {
         const arg = self.identifierConstant(name);
-        self.emitBytes(.{ .OPCODE = .GET_GLOBAL }, .{ .RAW = arg });
+
+        if (can_assign and self.match(.EQUAL)) {
+            self.expression();
+            self.emitBytes(.{ .OPCODE = .SET_GLOBAL }, .{ .RAW = arg });
+        } else {
+            self.emitBytes(.{ .OPCODE = .GET_GLOBAL }, .{ .RAW = arg });
+        }
     }
 
-    fn unary(self: *Parser) void {
+    fn unary(self: *Parser, _: ParseArguments) void {
         const token_type = self.previous.token_type;
 
         self.parsePrecedence(.UNARY);
@@ -223,7 +232,7 @@ const Parser = struct {
         }
     }
 
-    fn binary(self: *Parser) void {
+    fn binary(self: *Parser, _: ParseArguments) void {
         const operator = self.previous.token_type;
         const rule = getRule(operator);
         self.parsePrecedence(@enumFromInt(@intFromEnum(rule.precedence) + 1));
@@ -253,14 +262,19 @@ const Parser = struct {
 
         const prefix = prefix_rule.?;
 
-        prefix(self);
+        const can_assign = @intFromEnum(precedence) <= @intFromEnum(Precedence.ASSIGNMENT);
+        prefix(self, .{ .can_assign = can_assign });
 
         while (@intFromEnum(precedence) <= @intFromEnum(getRule(self.current.token_type).precedence)) {
             self.advance();
             const infix_rule = getRule(self.previous.token_type).infix;
             if (infix_rule) |infix| {
-                infix(self);
+                infix(self, .{});
             }
+        }
+
+        if (can_assign and self.match(.EQUAL)) {
+            self.emitError("Invalid assignment target.");
         }
     }
 
@@ -281,7 +295,7 @@ const Parser = struct {
         return rules.get(@tagName(token_type)).?;
     }
 
-    fn grouping(self: *Parser) void {
+    fn grouping(self: *Parser, _: ParseArguments) void {
         self.expression();
         self.consume(.RIGHT_PAREN, "Expect ')' after expression.");
     }

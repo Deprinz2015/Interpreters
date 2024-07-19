@@ -110,14 +110,23 @@ fn run(self: *VM) InterpreterResult {
                 self.globals.put(name.string(), self.peek(0)) catch unreachable;
                 _ = self.pop();
             },
-            .GET_GLOBAL => add: {
+            .GET_GLOBAL => get: {
                 const name = self.readConstant().OBJ.as.STRING;
                 const value = self.globals.get(name.string());
                 if (value == null) {
                     self.runtimeError("Undefined variable '{s}'.", .{name.string()});
-                    break :add;
+                    break :get;
                 }
                 self.push(value.?);
+            },
+            .SET_GLOBAL => set: {
+                const name = self.readConstant().OBJ.as.STRING;
+                const value = self.globals.get(name.string());
+                if (value == null) {
+                    self.runtimeError("Undefined variable '{s}'.", .{name.string()});
+                    break :set;
+                }
+                self.globals.put(name.string(), self.peek(0)) catch unreachable;
             },
             .RETURN => {
                 return .OK;
