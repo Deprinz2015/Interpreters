@@ -128,6 +128,14 @@ fn run(self: *VM) InterpreterResult {
                 }
                 self.globals.put(name.string(), self.peek(0)) catch unreachable;
             },
+            .GET_LOCAL => {
+                const slot = self.readByte();
+                self.push(self.stack[slot]);
+            },
+            .SET_LOCAL => {
+                const slot = self.readByte();
+                self.stack[slot] = self.peek(0);
+            },
             .RETURN => {
                 return .OK;
             },

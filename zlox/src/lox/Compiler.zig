@@ -1,4 +1,5 @@
 const DEBUG_PRINT_CODE = @import("config").chunk_trace;
+const LOCAL_COUNT = 256;
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -25,6 +26,7 @@ const Parser = struct {
     had_error: bool = false,
     panic_mode: bool = false,
     vm: *VM,
+    compiler: *Compiler,
     alloc: Allocator,
 
     const EmittingByte = union(enum) {
@@ -138,6 +140,14 @@ const Parser = struct {
         self.parsePrecedence(.ASSIGNMENT);
     }
 
+    fn block(self: *Parser) void {
+        while (!self.check(.RIGHT_BRACE) and !self.check(.EOF)) {
+            self.declaration();
+        }
+
+        self.consume(.RIGHT_BRACE, "Expect '}' after Block.");
+    }
+
     fn declaration(self: *Parser) void {
         if (self.match(.VAR)) {
             self.varDeclaration();
@@ -166,6 +176,10 @@ const Parser = struct {
     fn statement(self: *Parser) void {
         if (self.match(.PRINT)) {
             self.printStatement();
+        } else if (self.match(.LEFT_BRACE)) {
+            self.beginScope();
+            self.block();
+            self.endScope();
         } else {
             self.expressionStatement();
         }
@@ -210,13 +224,25 @@ const Parser = struct {
     }
 
     fn namedVariables(self: *Parser, name: Token, can_assign: bool) void {
-        const arg = self.identifierConstant(name);
+        var local = true;
+        const arg: u8 = arg: {
+            const idx = self.resolveLocal(name);
+            if (idx != -1) {
+                break :arg @intCast(idx);
+            }
+
+            local = false;
+            break :arg self.identifierConstant(name);
+        };
+
+        const getOp: Chunk.OpCode = if (local) .GET_LOCAL else .GET_GLOBAL;
+        const setOp: Chunk.OpCode = if (local) .SET_LOCAL else .SET_GLOBAL;
 
         if (can_assign and self.match(.EQUAL)) {
             self.expression();
-            self.emitBytes(.{ .OPCODE = .SET_GLOBAL }, .{ .RAW = arg });
+            self.emitBytes(.{ .OPCODE = setOp }, .{ .RAW = arg });
         } else {
-            self.emitBytes(.{ .OPCODE = .GET_GLOBAL }, .{ .RAW = arg });
+            self.emitBytes(.{ .OPCODE = getOp }, .{ .RAW = arg });
         }
     }
 
@@ -280,15 +306,76 @@ const Parser = struct {
 
     fn parseVariable(self: *Parser, err_msg: []const u8) u8 {
         self.consume(.IDENTIFIER, err_msg);
+
+        self.declareVariable();
+        if (self.compiler.scope_depth > 0) {
+            return 0;
+        }
+
         return self.identifierConstant(self.previous);
+    }
+
+    fn declareVariable(self: *Parser) void {
+        if (self.compiler.scope_depth == 0) {
+            return;
+        }
+
+        const name = self.previous;
+
+        var i = self.compiler.local_count - 1;
+        while (i >= 0) : (i -= 1) {
+            const local = self.compiler.locals[i];
+            if (local.depth != -1 and local.depth < self.compiler.scope_depth) {
+                break;
+            }
+
+            if (identifiersEqual(name, local.name)) {
+                self.emitError("Already a variable with this name in this scope.");
+            }
+        }
+
+        self.compiler.addLocal(name) catch |err| switch (err) {
+            Compiler.Error.TooManyVariables => self.emitError("Too many local variables in function."),
+        };
+    }
+
+    fn identifiersEqual(this: Token, that: Token) bool {
+        if (this.length != that.length) {
+            return false;
+        }
+
+        return std.mem.eql(u8, this.start[0..this.length], that.start[0..that.length]);
     }
 
     fn identifierConstant(self: *Parser, name: Token) u8 {
         return self.makeConstant(.{ .OBJ = Obj.copyString(self.alloc, name.start[0..name.length], self.vm) });
     }
 
+    fn resolveLocal(self: *Parser, name: Token) i8 {
+        var idx = self.compiler.local_count - 1;
+        while (idx >= 0) : (idx -= 1) {
+            const local = self.compiler.locals[idx];
+            if (identifiersEqual(name, local.name)) {
+                if (local.depth == -1) {
+                    self.emitError("Can't read local variable in its own initializer.");
+                }
+                return @intCast(idx);
+            }
+        }
+
+        return -1;
+    }
+
     fn defineVariable(self: *Parser, global: u8) void {
+        if (self.compiler.scope_depth > 0) {
+            self.markInitialized();
+            return;
+        }
         self.emitBytes(.{ .OPCODE = .DEFINE_GLOBAL }, .{ .RAW = global });
+    }
+
+    fn markInitialized(self: *Parser) void {
+        self.compiler.locals[self.compiler.local_count - 1].depth = self.compiler.scope_depth;
     }
 
     fn getRule(token_type: TokenType) ParseRule {
@@ -298,6 +385,19 @@ const Parser = struct {
     fn grouping(self: *Parser, _: ParseArguments) void {
         self.expression();
         self.consume(.RIGHT_PAREN, "Expect ')' after expression.");
+    }
+
+    fn beginScope(self: *Parser) void {
+        self.compiler.scope_depth += 1;
+    }
+
+    fn endScope(self: *Parser) void {
+        self.compiler.scope_depth -= 1;
+
+        while (self.compiler.local_count > 0 and self.compiler.locals[self.compiler.local_count - 1].depth > self.compiler.scope_depth) {
+            self.emitByte(.{ .OPCODE = .POP });
+            self.compiler.local_count += 1;
+        }
     }
 
     fn emitByte(self: *Parser, emitting_byte: EmittingByte) void {
@@ -388,7 +488,35 @@ const Parser = struct {
     }
 };
 
+const Compiler = struct {
+    locals: [LOCAL_COUNT]Local = .{undefined} ** LOCAL_COUNT,
+    local_count: usize = 0,
+    scope_depth: isize = 0,
+
+    const Error = error{
+        TooManyVariables,
+    };
+
+    const Local = struct {
+        name: Token,
+        depth: isize,
+    };
+
+    fn addLocal(self: *Compiler, name: Token) !void {
+        if (self.local_count == LOCAL_COUNT) {
+            return Compiler.Error.TooManyVariables;
+        }
+        const local = &self.locals[self.local_count + 1];
+        self.local_count += 1;
+        local.* = .{
+            .name = name,
+            .depth = -1,
+        };
+    }
+};
+
 pub fn compile(alloc: Allocator, vm: *VM, source: []const u8, chunk: *Chunk) Error!void {
+    var compiler: Compiler = .{};
     const scanner = Scanner.init(source);
     var parser: Parser = .{
         .current = undefined,
@@ -397,6 +525,7 @@ pub fn compile(alloc: Allocator, vm: *VM, source: []const u8, chunk: *Chunk) Err
         .compiling_chunk = chunk,
         .alloc = alloc,
         .vm = vm,
+        .compiler = &compiler,
     };
 
     parser.advance();
