@@ -322,9 +322,9 @@ const Parser = struct {
 
         const name = self.previous;
 
-        var i = self.compiler.local_count - 1;
-        while (i >= 0) : (i -= 1) {
-            const local = self.compiler.locals[i];
+        var idx: usize = 0;
+        while (idx < self.compiler.local_count) : (idx += 1) {
+            const local = self.compiler.locals[idx];
             if (local.depth != -1 and local.depth < self.compiler.scope_depth) {
                 break;
             }
@@ -351,9 +351,9 @@ const Parser = struct {
         return self.makeConstant(.{ .OBJ = Obj.copyString(self.alloc, name.start[0..name.length], self.vm) });
     }
 
-    fn resolveLocal(self: *Parser, name: Token) i8 {
-        var idx = self.compiler.local_count - 1;
-        while (idx >= 0) : (idx -= 1) {
+    fn resolveLocal(self: *Parser, name: Token) i9 {
+        var idx: usize = 0;
+        while (idx < self.compiler.local_count) : (idx += 1) {
             const local = self.compiler.locals[idx];
             if (identifiersEqual(name, local.name)) {
                 if (local.depth == -1) {
