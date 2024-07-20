@@ -6,6 +6,8 @@ const Value = @import("value.zig").Value;
 const Chunk = @This();
 
 pub const OpCode = enum(u8) {
+    JUMP_IF_FALSE,
+    JUMP,
     RETURN,
     PRINT,
     POP,

@@ -24,6 +24,8 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .RETURN => simpleInstruction("OP_RETURN", offset),
         .PRINT => simpleInstruction("OP_PRINT", offset),
         .POP => simpleInstruction("OP_POP", offset),
+        .JUMP => jumpInstruction("OP_JUMP", 1, chunk, offset),
+        .JUMP_IF_FALSE => jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset),
         .DEFINE_GLOBAL => constantInstruction("OP_DEFINE_GLOBAL", chunk, offset),
         .GET_GLOBAL => constantInstruction("OP_GET_GLOBAL", chunk, offset),
         .SET_GLOBAL => constantInstruction("OP_SET_GLOBAL", chunk, offset),
@@ -54,6 +56,16 @@ fn constantInstruction(name: []const u8, chunk: *Chunk, offset: usize) usize {
     const constant = chunk.byteAt(offset + 1);
     std.debug.print("{s: <16} {d: <4} '{}'\n", .{ name, constant, chunk.constantAt(constant) });
     return offset + 2;
+}
+
+fn jumpInstruction(name: []const u8, sign: i2, chunk: *Chunk, offset: usize) usize {
+    var jump: u16 = @intCast(chunk.byteAt(offset + 1));
+    jump = jump << 8 | chunk.byteAt(offset + 2);
+    var jump_to: isize = sign * @as(isize, jump) + 3;
+    jump_to += @intCast(offset);
+
+    std.debug.print("{s: <16} {d: <4} -> {x}\n", .{ name, offset, jump_to });
+    return offset + 3;
 }
 
 fn byteInstruction(name: []const u8, chunk: *Chunk, offset: usize) usize {

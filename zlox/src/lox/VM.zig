@@ -105,6 +105,16 @@ fn run(self: *VM) InterpreterResult {
         switch (instruction) {
             .PRINT => StdOut.writer().print("{}\n", .{self.pop()}) catch unreachable,
             .POP => _ = self.pop(),
+            .JUMP => {
+                const offset = self.readShort();
+                self.ip += offset;
+            },
+            .JUMP_IF_FALSE => {
+                const offset = self.readShort();
+                if (isFalsey(self.peek(0))) {
+                    self.ip += offset;
+                }
+            },
             .DEFINE_GLOBAL => {
                 const name = self.readConstant().OBJ.as.STRING;
                 self.globals.put(name.string(), self.peek(0)) catch unreachable;
@@ -208,6 +218,13 @@ fn readByte(self: *VM) u8 {
     const ip = self.ip;
     self.ip += 1;
     return self.chunk.byteAt(ip);
+}
+
+fn readShort(self: *VM) u16 {
+    const ip = self.ip;
+    self.ip += 2;
+    const lhs: u16 = @intCast(self.chunk.byteAt(ip));
+    return (lhs << 8) | self.chunk.byteAt(ip + 1);
 }
 
 fn readConstant(self: *VM) Value {

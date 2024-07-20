@@ -180,6 +180,8 @@ const Parser = struct {
             self.beginScope();
             self.block();
             self.endScope();
+        } else if (self.match(.IF)) {
+            self.ifStatement();
         } else {
             self.expressionStatement();
         }
@@ -195,6 +197,26 @@ const Parser = struct {
         self.expression();
         self.consume(.SEMICOLON, "Expect ';' after value.");
         self.emitByte(.{ .OPCODE = .POP });
+    }
+
+    fn ifStatement(self: *Parser) void {
+        self.consume(.LEFT_PAREN, "Expect '(' after 'if'.");
+        self.expression();
+        self.consume(.RIGHT_PAREN, "Expect ')' after condition.");
+
+        const thenJump = self.emitJump(.{ .OPCODE = .JUMP_IF_FALSE });
+        self.emitByte(.{ .OPCODE = .POP });
+        self.statement();
+
+        const elseJump = self.emitJump(.{ .OPCODE = .JUMP });
+
+        self.patchJump(thenJump);
+        self.emitByte(.{ .OPCODE = .POP });
+
+        if (self.match(.ELSE)) {
+            self.statement();
+        }
+        self.patchJump(elseJump);
     }
 
     fn literal(self: *Parser, _: ParseArguments) void {
@@ -410,6 +432,24 @@ const Parser = struct {
     fn emitBytes(self: *Parser, byte1: EmittingByte, byte2: EmittingByte) void {
         self.emitByte(byte1);
         self.emitByte(byte2);
+    }
+
+    fn emitJump(self: *Parser, instruction: EmittingByte) usize {
+        self.emitByte(instruction);
+        self.emitByte(.{ .RAW = 0xff });
+        self.emitByte(.{ .RAW = 0xff });
+        return self.currentChunk().count - 2;
+    }
+
+    fn patchJump(self: *Parser, offset: usize) void {
+        const jump = self.currentChunk().count - offset - 2;
+
+        if (jump > std.math.maxInt(u16)) {
+            self.emitError("Too much code to jump over.");
+        }
+
+        self.currentChunk().code[offset] = @intCast((jump >> 8) & 0xff);
+        self.currentChunk().code[offset + 1] = @intCast(jump & 0xff);
     }
 
     fn emitReturn(self: *Parser) void {
