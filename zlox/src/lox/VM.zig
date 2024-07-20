@@ -96,6 +96,9 @@ fn run(self: *VM) InterpreterResult {
                 }
                 std.debug.print("[ {} ]", .{slot});
             }
+            if (self.stack_top == 0) {
+                std.debug.print("[ empty stack ]", .{});
+            }
             std.debug.print("\n", .{});
             _ = debug.disassembleInstruction(self.chunk, self.ip);
         }
@@ -114,6 +117,10 @@ fn run(self: *VM) InterpreterResult {
                 if (isFalsey(self.peek(0))) {
                     self.ip += offset;
                 }
+            },
+            .LOOP => {
+                const offset = self.readShort();
+                self.ip -= offset;
             },
             .DEFINE_GLOBAL => {
                 const name = self.readConstant().OBJ.as.STRING;

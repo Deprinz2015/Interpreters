@@ -8,6 +8,7 @@ const Chunk = @This();
 pub const OpCode = enum(u8) {
     JUMP_IF_FALSE,
     JUMP,
+    LOOP,
     RETURN,
     PRINT,
     POP,

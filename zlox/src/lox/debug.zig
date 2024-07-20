@@ -26,6 +26,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .POP => simpleInstruction("OP_POP", offset),
         .JUMP => jumpInstruction("OP_JUMP", 1, chunk, offset),
         .JUMP_IF_FALSE => jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset),
+        .LOOP => jumpInstruction("OP_LOOP", -1, chunk, offset),
         .DEFINE_GLOBAL => constantInstruction("OP_DEFINE_GLOBAL", chunk, offset),
         .GET_GLOBAL => constantInstruction("OP_GET_GLOBAL", chunk, offset),
         .SET_GLOBAL => constantInstruction("OP_SET_GLOBAL", chunk, offset),

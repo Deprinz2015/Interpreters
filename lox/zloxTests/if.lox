@@ -1,6 +1,6 @@
 print "Logical:" ;
-// print "hi" or 2 ; // "hi".
-// print nil or "yes" ; // "yes".
+print "hi" or 2 ; // "hi".
+print nil or "yes" ; // "yes".
 print "" ;
 
 print "If:" ;

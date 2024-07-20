@@ -81,7 +81,7 @@ const Parser = struct {
         .{ @tagName(TokenType.IDENTIFIER), .{ .prefix = variable, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.STRING), .{ .prefix = string, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.NUMBER), .{ .prefix = number, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.AND), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.AND), .{ .prefix = null, .infix = and_, .precedence = .AND } },
         .{ @tagName(TokenType.CLASS), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.ELSE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.FALSE), .{ .prefix = literal, .infix = null, .precedence = .NONE } },
@@ -89,7 +89,7 @@ const Parser = struct {
         .{ @tagName(TokenType.FUN), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.IF), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.NIL), .{ .prefix = literal, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.OR), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.OR), .{ .prefix = null, .infix = or_, .precedence = .OR } },
         .{ @tagName(TokenType.PRINT), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.RETURN), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.SUPER), .{ .prefix = null, .infix = null, .precedence = .NONE } },
@@ -182,6 +182,10 @@ const Parser = struct {
             self.endScope();
         } else if (self.match(.IF)) {
             self.ifStatement();
+        } else if (self.match(.WHILE)) {
+            self.whileStatement();
+        } else if (self.match(.FOR)) {
+            self.forStatement();
         } else {
             self.expressionStatement();
         }
@@ -217,6 +221,73 @@ const Parser = struct {
             self.statement();
         }
         self.patchJump(elseJump);
+    }
+
+    fn whileStatement(self: *Parser) void {
+        const loop_start = self.currentChunk().count;
+        self.consume(.LEFT_PAREN, "Expect '(' after 'while'.");
+        self.expression();
+        self.consume(.RIGHT_PAREN, "Expect ')' after condition.");
+
+        const exitJump = self.emitJump(.{ .OPCODE = .JUMP_IF_FALSE });
+        self.emitByte(.{ .OPCODE = .POP });
+        self.statement();
+        self.emitLoop(loop_start);
+
+        self.patchJump(exitJump);
+        self.emitByte(.{ .OPCODE = .POP });
+    }
+
+    fn forStatement(self: *Parser) void {
+        self.beginScope();
+        self.consume(.LEFT_PAREN, "Expect '(' after 'for'.");
+        if (self.match(.SEMICOLON)) {
+            // noop
+        } else if (self.match(.VAR)) {
+            self.varDeclaration();
+        } else {
+            self.expressionStatement();
+        }
+
+        var loop_start = self.currentChunk().count;
+
+        var has_condition = false;
+        const exit_jump = jump: {
+            if (self.match(.SEMICOLON)) {
+                break :jump 0;
+            }
+
+            self.expression();
+            self.consume(.SEMICOLON, "Expect ';' after loop condition.");
+
+            const jump = self.emitJump(.{ .OPCODE = .JUMP_IF_FALSE });
+            self.emitByte(.{ .OPCODE = .POP });
+            has_condition = true;
+            break :jump jump;
+        };
+
+        if (!self.match(.RIGHT_PAREN)) {
+            const body_jump = self.emitJump(.{ .OPCODE = .JUMP });
+            const inc_start = self.currentChunk().count;
+
+            self.expression();
+            self.emitByte(.{ .OPCODE = .POP });
+            self.consume(.RIGHT_PAREN, "Expect ')' after for clauses.");
+
+            self.emitLoop(loop_start);
+            loop_start = inc_start;
+            self.patchJump(body_jump);
+        }
+
+        self.statement();
+        self.emitLoop(loop_start);
+
+        if (has_condition) {
+            self.patchJump(exit_jump);
+            self.emitByte(.{ .OPCODE = .POP });
+        }
+
+        self.endScope();
     }
 
     fn literal(self: *Parser, _: ParseArguments) void {
@@ -396,6 +467,26 @@ const Parser = struct {
         self.emitBytes(.{ .OPCODE = .DEFINE_GLOBAL }, .{ .RAW = global });
     }
 
+    fn and_(self: *Parser, _: ParseArguments) void {
+        const endJump = self.emitJump(.{ .OPCODE = .JUMP_IF_FALSE });
+
+        self.emitByte(.{ .OPCODE = .POP });
+        self.parsePrecedence(.AND);
+
+        self.patchJump(endJump);
+    }
+
+    fn or_(self: *Parser, _: ParseArguments) void {
+        const elseJump = self.emitJump(.{ .OPCODE = .JUMP_IF_FALSE });
+        const endJump = self.emitJump(.{ .OPCODE = .JUMP });
+
+        self.patchJump(elseJump);
+        self.emitByte(.{ .OPCODE = .POP });
+
+        self.parsePrecedence(.OR);
+        self.patchJump(endJump);
+    }
+
     fn markInitialized(self: *Parser) void {
         self.compiler.locals[self.compiler.local_count - 1].depth = self.compiler.scope_depth;
     }
@@ -439,6 +530,18 @@ const Parser = struct {
         self.emitByte(.{ .RAW = 0xff });
         self.emitByte(.{ .RAW = 0xff });
         return self.currentChunk().count - 2;
+    }
+
+    fn emitLoop(self: *Parser, loop_start: usize) void {
+        self.emitByte(.{ .OPCODE = .LOOP });
+
+        const offset = self.currentChunk().count - loop_start + 2;
+        if (offset > std.math.maxInt(u16)) {
+            self.emitError("Loop body to large.");
+        }
+
+        self.emitByte(.{ .RAW = @intCast((offset >> 8) & 0xff) });
+        self.emitByte(.{ .RAW = @intCast(offset & 0xff) });
     }
 
     fn patchJump(self: *Parser, offset: usize) void {
@@ -546,7 +649,7 @@ const Compiler = struct {
         if (self.local_count == LOCAL_COUNT) {
             return Compiler.Error.TooManyVariables;
         }
-        const local = &self.locals[self.local_count + 1];
+        const local = &self.locals[self.local_count];
         self.local_count += 1;
         local.* = .{
             .name = name,
