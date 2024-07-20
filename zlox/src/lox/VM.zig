@@ -4,7 +4,8 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const StdOut = std.io.getStdOut();
 
-const STACK_MAX = 256;
+const FRAMES_MAX = 64;
+const STACK_MAX = FRAMES_MAX * std.math.maxInt(u8);
 
 const Chunk = @import("Chunk.zig");
 const OpCode = Chunk.OpCode;
@@ -28,12 +29,18 @@ const BinaryOperation = enum {
     DIVIDE,
 };
 
+const CallFrame = struct {
+    function: *Obj.Function,
+    ip: usize,
+    slots: [STACK_MAX]Value = .{undefined} ** STACK_MAX,
+};
+
 had_error: bool = false,
-chunk: *Chunk = undefined,
+frames: [FRAMES_MAX]CallFrame = .{undefined} ** FRAMES_MAX,
+frame_count: usize = 0,
 objects: ?*Obj = null,
 strings: std.StringHashMap(*Obj.String),
 globals: std.StringHashMap(Value),
-ip: usize = 0,
 stack: [STACK_MAX]Value = .{undefined} ** STACK_MAX,
 stack_top: usize,
 alloc: Allocator,
@@ -69,24 +76,34 @@ fn freeObject(self: *VM, obj: *Obj) void {
             self.alloc.destroy(str);
             self.alloc.destroy(obj);
         },
+        .FUNCTION => {
+            const function = obj.as.FUNCTION;
+            function.chunk.deinit();
+            self.alloc.destroy(function);
+            self.alloc.destroy(obj);
+        },
     }
 }
 
 pub fn interpret(self: *VM, alloc: Allocator, source: []const u8) InterpreterResult {
-    var chunk = Chunk.init(alloc);
-    defer chunk.deinit();
-    Compiler.compile(alloc, self, source, &chunk) catch {
+    const function = Compiler.compile(alloc, self, source) catch {
         return .COMPILE_ERROR;
     };
 
-    self.chunk = &chunk;
-    self.ip = 0;
+    self.push(.{ .OBJ = function.obj });
+    const frame = &self.frames[self.frame_count];
+    self.frame_count += 1;
+    frame.* = .{
+        .function = function,
+        .slots = self.stack,
+        .ip = 0,
+    };
 
-    const result = self.run();
-    return result;
+    return self.run();
 }
 
 fn run(self: *VM) InterpreterResult {
+    const frame = self.currentFrame();
     while (true) {
         if (comptime DEBUG_TRACE_EXECUTION) {
             std.debug.print("          ", .{});
@@ -100,7 +117,7 @@ fn run(self: *VM) InterpreterResult {
                 std.debug.print("[ empty stack ]", .{});
             }
             std.debug.print("\n", .{});
-            _ = debug.disassembleInstruction(self.chunk, self.ip);
+            _ = debug.disassembleInstruction(&frame.function.chunk, frame.ip);
         }
 
         const byte = self.readByte();
@@ -110,17 +127,17 @@ fn run(self: *VM) InterpreterResult {
             .POP => _ = self.pop(),
             .JUMP => {
                 const offset = self.readShort();
-                self.ip += offset;
+                frame.ip += offset;
             },
             .JUMP_IF_FALSE => {
                 const offset = self.readShort();
                 if (isFalsey(self.peek(0))) {
-                    self.ip += offset;
+                    frame.ip += offset;
                 }
             },
             .LOOP => {
                 const offset = self.readShort();
-                self.ip -= offset;
+                frame.ip -= offset;
             },
             .DEFINE_GLOBAL => {
                 const name = self.readConstant().OBJ.as.STRING;
@@ -147,11 +164,11 @@ fn run(self: *VM) InterpreterResult {
             },
             .GET_LOCAL => {
                 const slot = self.readByte();
-                self.push(self.stack[slot]);
+                self.push(frame.slots[slot]);
             },
             .SET_LOCAL => {
                 const slot = self.readByte();
-                self.stack[slot] = self.peek(0);
+                frame.slots[slot] = self.peek(0);
             },
             .RETURN => {
                 return .OK;
@@ -221,21 +238,27 @@ fn peek(self: *VM, index: usize) Value {
     return self.stack[self.stack_top - index - 1];
 }
 
+fn currentFrame(self: *VM) *CallFrame {
+    return &self.frames[self.frame_count - 1];
+}
+
 fn readByte(self: *VM) u8 {
-    const ip = self.ip;
-    self.ip += 1;
-    return self.chunk.byteAt(ip);
+    const frame = self.currentFrame();
+    const ip = frame.ip;
+    frame.ip += 1;
+    return frame.function.chunk.byteAt(ip);
 }
 
 fn readShort(self: *VM) u16 {
-    const ip = self.ip;
-    self.ip += 2;
-    const lhs: u16 = @intCast(self.chunk.byteAt(ip));
-    return (lhs << 8) | self.chunk.byteAt(ip + 1);
+    const frame = self.currentFrame();
+    const ip = frame.ip;
+    frame.ip += 2;
+    const lhs: u16 = @intCast(frame.function.chunk.byteAt(ip));
+    return (lhs << 8) | frame.function.chunk.byteAt(ip + 1);
 }
 
 fn readConstant(self: *VM) Value {
-    return self.chunk.constants.at(self.readByte());
+    return self.currentFrame().function.chunk.constantAt(self.readByte());
 }
 
 fn binaryOp(self: *VM, op: OpCode) void {
@@ -298,6 +321,15 @@ fn valuesEqual(a: Value, b: Value) bool {
                 const str_b = b.OBJ.as.STRING;
                 return str_a == str_b;
             },
+            .FUNCTION => {
+                if (b.OBJ.as != .FUNCTION) {
+                    return false;
+                }
+
+                const fun_a = a.OBJ.as.FUNCTION;
+                const fun_b = b.OBJ.as.FUNCTION;
+                return fun_a.name == fun_b.name;
+            },
         },
     };
 }
@@ -307,7 +339,8 @@ fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) void {
     StdErr.writer().print(format, args) catch {};
     StdErr.writer().writeByte('\n') catch {};
 
-    const line = self.chunk.lines[self.ip - 1];
+    const frame = self.currentFrame();
+    const line = frame.function.chunk.lines[frame.ip];
     StdErr.writer().print("[line {d}] in script\n", .{line}) catch {};
     self.resetStack();
     self.had_error = true;
