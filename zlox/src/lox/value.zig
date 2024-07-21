@@ -2,16 +2,19 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const VM = @import("VM.zig");
+const Chunk = @import("Chunk.zig");
 
+// PERF: Try out data oriented design to optimize and measure
 pub const Obj = struct {
     as: Type,
     next: ?*Obj,
 
     pub const Type = union(enum) {
         STRING: *String,
+        FUNCTION: *Function,
     };
 
-    pub const String = packed struct {
+    pub const String = struct {
         obj: *Obj,
         length: usize,
         chars: [*]const u8,
@@ -19,6 +22,13 @@ pub const Obj = struct {
         pub fn string(self: *String) []const u8 {
             return self.chars[0..self.length];
         }
+    };
+
+    pub const Function = struct {
+        obj: *Obj,
+        arity: u8,
+        chunk: Chunk,
+        name: ?*String,
     };
 
     pub fn copyString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
@@ -40,6 +50,16 @@ pub const Obj = struct {
         }
 
         return createString(alloc, chars.ptr, chars.len, vm);
+    }
+
+    pub fn createFunction(alloc: Allocator, vm: *VM) *Obj {
+        const function = alloc.create(Function) catch unreachable;
+        function.arity = 0;
+        function.name = null;
+        function.chunk = Chunk.init(alloc);
+        const obj = createObj(alloc, .{ .FUNCTION = function }, vm);
+        function.obj = obj;
+        return obj;
     }
 
     fn createString(alloc: Allocator, string: [*]const u8, length: usize, vm: *VM) *Obj {
@@ -87,6 +107,14 @@ pub const Value = union(enum) {
                 .STRING => {
                     const str = obj.as.STRING;
                     try writer.print("{s}", .{str.string()});
+                },
+                .FUNCTION => {
+                    const function = obj.as.FUNCTION;
+                    if (function.name) |name| {
+                        try writer.print("<fn {s}>", .{name.string()});
+                    } else {
+                        try writer.writeAll("<script>");
+                    }
                 },
             },
         }

@@ -22,7 +22,6 @@ const Parser = struct {
     current: Token,
     previous: Token,
     scanner: Scanner,
-    compiling_chunk: *Chunk,
     had_error: bool = false,
     panic_mode: bool = false,
     vm: *VM,
@@ -575,7 +574,7 @@ const Parser = struct {
     }
 
     fn currentChunk(self: *Parser) *Chunk {
-        return self.compiling_chunk;
+        return &self.compiler.function.chunk;
     }
 
     fn previousLexeme(self: *Parser) []const u8 {
@@ -632,9 +631,16 @@ const Parser = struct {
 };
 
 const Compiler = struct {
+    function: *Obj.Function,
+    fun_type: FunctionType,
     locals: [LOCAL_COUNT]Local = .{undefined} ** LOCAL_COUNT,
     local_count: usize = 0,
     scope_depth: isize = 0,
+
+    const FunctionType = enum {
+        FUNCTION,
+        SCRIPT,
+    };
 
     const Error = error{
         TooManyVariables,
@@ -644,6 +650,28 @@ const Compiler = struct {
         name: Token,
         depth: isize,
     };
+
+    fn init(alloc: Allocator, fun_type: FunctionType, vm: *VM) Compiler {
+        var compiler: Compiler = .{
+            .function = undefined,
+            .fun_type = fun_type,
+        };
+        compiler.function = Obj.createFunction(alloc, vm).as.FUNCTION;
+
+        const local = &compiler.locals[compiler.local_count];
+        compiler.local_count += 1;
+        local.* = .{
+            .depth = 0,
+            .name = .{
+                .token_type = .IDENTIFIER,
+                .start = "",
+                .length = 1,
+                .line = 0,
+            },
+        };
+
+        return compiler;
+    }
 
     fn addLocal(self: *Compiler, name: Token) !void {
         if (self.local_count == LOCAL_COUNT) {
@@ -656,16 +684,30 @@ const Compiler = struct {
             .depth = -1,
         };
     }
+
+    fn endCompiler(self: *Compiler, parser: *Parser) *Obj.Function {
+        parser.emitReturn();
+        const function = self.function;
+
+        if (comptime DEBUG_PRINT_CODE) {
+            if (function.name) |name| {
+                @import("debug.zig").disassembleChunk(parser.currentChunk(), name.string());
+            } else {
+                @import("debug.zig").disassembleChunk(parser.currentChunk(), "<script>");
+            }
+        }
+
+        return function;
+    }
 };
 
-pub fn compile(alloc: Allocator, vm: *VM, source: []const u8, chunk: *Chunk) Error!void {
-    var compiler: Compiler = .{};
+pub fn compile(alloc: Allocator, vm: *VM, source: []const u8) Error!*Obj.Function {
+    var compiler = Compiler.init(alloc, .SCRIPT, vm);
     const scanner = Scanner.init(source);
     var parser: Parser = .{
         .current = undefined,
         .previous = undefined,
         .scanner = scanner,
-        .compiling_chunk = chunk,
         .alloc = alloc,
         .vm = vm,
         .compiler = &compiler,
@@ -675,17 +717,11 @@ pub fn compile(alloc: Allocator, vm: *VM, source: []const u8, chunk: *Chunk) Err
     while (!parser.match(.EOF)) {
         parser.declaration();
     }
-    endCompiler(&parser);
+    const function = compiler.endCompiler(&parser);
 
     if (parser.had_error) {
         return Error.ParserError;
     }
-}
 
-fn endCompiler(parser: *Parser) void {
-    parser.emitReturn();
-
-    if (comptime DEBUG_PRINT_CODE) {
-        @import("debug.zig").disassembleChunk(parser.currentChunk(), "code");
-    }
+    return function;
 }

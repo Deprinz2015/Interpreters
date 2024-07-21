@@ -54,9 +54,5 @@ fn makeStep(b: *std.Build, options: Options) *std.Build.Step.Compile {
     config.addOption(bool, "chunk_trace", options.chunk_trace);
     step.root_module.addOptions("config", config);
 
-    // var config = b.addOptions();
-    // config.addOption(bool, "debug", debug);
-    // step.root_module.addOptions("config", options);
-
     return step;
 }
