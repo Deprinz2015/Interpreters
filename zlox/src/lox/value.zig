@@ -58,6 +58,7 @@ pub const Obj = struct {
         function.name = null;
         function.chunk = Chunk.init(alloc);
         const obj = createObj(alloc, .{ .FUNCTION = function }, vm);
+        function.obj = obj;
         return obj;
     }
 

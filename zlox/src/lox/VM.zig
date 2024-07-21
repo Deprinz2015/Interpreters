@@ -4,7 +4,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const StdOut = std.io.getStdOut();
 
-const FRAMES_MAX = 16;
+const FRAMES_MAX = 32;
 const STACK_MAX = FRAMES_MAX * std.math.maxInt(u8);
 
 const Chunk = @import("Chunk.zig");
