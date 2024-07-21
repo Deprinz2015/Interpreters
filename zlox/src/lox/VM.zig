@@ -32,7 +32,7 @@ const BinaryOperation = enum {
 const CallFrame = struct {
     function: *Obj.Function,
     ip: usize,
-    slots: [STACK_MAX]Value = .{undefined} ** STACK_MAX,
+    slots: *[STACK_MAX]Value,
 };
 
 had_error: bool = false,
@@ -95,7 +95,7 @@ pub fn interpret(self: *VM, alloc: Allocator, source: []const u8) InterpreterRes
     self.frame_count += 1;
     frame.* = .{
         .function = function,
-        .slots = self.stack,
+        .slots = &self.stack,
         .ip = 0,
     };
 
