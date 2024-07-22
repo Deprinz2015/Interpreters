@@ -283,11 +283,12 @@ fn call(self: *VM, function: *Obj.Function, arg_count: usize) RuntimeError!void 
 
     const frame = &self.frames[self.frame_count];
     self.frame_count += 1;
+    const frame_start = self.stack_top - arg_count - 1;
     frame.* = .{
         .function = function,
         .ip = 0,
-        .slots = self.stack[(self.stack_top - arg_count - 1)..].ptr,
-        .return_adress = self.stack_top,
+        .slots = self.stack[frame_start..].ptr,
+        .return_adress = frame_start,
     };
 }
 
