@@ -5,10 +5,14 @@ fun fib(n) {
 
 print("Start");
 var begin = clock();
-for (var i = 0; i < 30; i = i + 1) {
+for (var i = 0; i < 33; i = i + 1) {
   print(fib(i));
 }
 var end = clock();
 print("End");
 print("Time taken (secs):");
 print(end - begin);
+
+// Benchmarks:
+// zlox: 7.523000001907349 seconds
+// plox: 247.54936003685 seconds
