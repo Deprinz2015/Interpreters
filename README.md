@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [24.7](https://craftinginterpreters.com/calls-and-functions.html#native-functions)
+Currently at Chapter [25](https://craftinginterpreters.com/closures.html)
 
 This Project will contain at least 2 implementations:
 

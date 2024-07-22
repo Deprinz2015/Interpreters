@@ -182,9 +182,7 @@ const Parser = struct {
     }
 
     fn statement(self: *Parser) void {
-        if (self.match(.PRINT)) {
-            self.printStatement();
-        } else if (self.match(.LEFT_BRACE)) {
+        if (self.match(.LEFT_BRACE)) {
             self.beginScope();
             self.block();
             self.endScope();
@@ -199,12 +197,6 @@ const Parser = struct {
         } else {
             self.expressionStatement();
         }
-    }
-
-    fn printStatement(self: *Parser) void {
-        self.expression();
-        self.consume(.SEMICOLON, "Expect ';' after value.");
-        self.emitByte(.{ .OPCODE = .PRINT });
     }
 
     fn expressionStatement(self: *Parser) void {

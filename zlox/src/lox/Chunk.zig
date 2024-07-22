@@ -11,7 +11,6 @@ pub const OpCode = enum(u8) {
     LOOP,
     CALL,
     RETURN,
-    PRINT,
     POP,
     DEFINE_GLOBAL,
     GET_GLOBAL,

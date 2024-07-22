@@ -4,7 +4,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const StdOut = std.io.getStdOut();
 
-const FRAMES_MAX = 32;
+const FRAMES_MAX = 64;
 const STACK_MAX = FRAMES_MAX * std.math.maxInt(u8);
 
 const Chunk = @import("Chunk.zig");
@@ -37,28 +37,37 @@ const CallFrame = struct {
 };
 
 had_error: bool = false,
-frames: [FRAMES_MAX]CallFrame = .{undefined} ** FRAMES_MAX,
+frames: []CallFrame,
 frame_count: usize = 0,
 objects: ?*Obj = null,
 strings: std.StringHashMap(*Obj.String),
 globals: std.StringHashMap(Value),
-stack: [STACK_MAX]Value = .{undefined} ** STACK_MAX,
+stack: []Value,
 stack_top: usize,
 alloc: Allocator,
 
 pub fn init(alloc: Allocator) VM {
-    return .{
+    var vm: VM = .{
+        .stack = alloc.alloc(Value, STACK_MAX) catch unreachable,
+        .frames = alloc.alloc(CallFrame, FRAMES_MAX) catch unreachable,
         .stack_top = 0,
         .alloc = alloc,
         .strings = std.StringHashMap(*Obj.String).init(alloc),
         .globals = std.StringHashMap(Value).init(alloc),
     };
+
+    vm.defineNative("clock", &NativeFunctions.clock);
+    vm.defineNative("print", &NativeFunctions.print);
+
+    return vm;
 }
 
 pub fn deinit(self: *VM) void {
     self.deinitObjects();
     self.strings.deinit();
     self.globals.deinit();
+    self.alloc.free(self.stack);
+    self.alloc.free(self.frames);
 }
 
 fn deinitObjects(self: *VM) void {
@@ -70,18 +79,21 @@ fn deinitObjects(self: *VM) void {
 }
 
 fn freeObject(self: *VM, obj: *Obj) void {
+    defer self.alloc.destroy(obj);
     switch (obj.as) {
         .STRING => {
             const str = obj.as.STRING;
             self.alloc.free(str.string());
             self.alloc.destroy(str);
-            self.alloc.destroy(obj);
         },
         .FUNCTION => {
             const function = obj.as.FUNCTION;
             function.chunk.deinit();
             self.alloc.destroy(function);
-            self.alloc.destroy(obj);
+        },
+        .NATIVE => {
+            const function = obj.as.NATIVE;
+            self.alloc.destroy(function);
         },
     }
 }
@@ -120,7 +132,6 @@ fn run(self: *VM) InterpreterResult {
         const byte = self.readByte();
         const instruction: OpCode = @enumFromInt(byte);
         switch (instruction) {
-            .PRINT => StdOut.writer().print("{}\n", .{self.pop()}) catch unreachable,
             .POP => _ = self.pop(),
             .CALL => {
                 const arg_count = self.readByte();
@@ -233,6 +244,14 @@ fn run(self: *VM) InterpreterResult {
     return .OK;
 }
 
+fn defineNative(self: *VM, name: []const u8, function: Obj.NativeFunction.NativeFn) void {
+    self.push(.{ .OBJ = Obj.copyString(self.alloc, name, self) });
+    self.push(.{ .OBJ = Obj.createNativeFunction(self.alloc, function, self) });
+    self.globals.put(self.stack[0].OBJ.as.STRING.string(), self.stack[1]) catch unreachable;
+    _ = self.pop();
+    _ = self.pop();
+}
+
 fn resetStack(self: *VM) void {
     self.stack_top = 0;
 }
@@ -261,6 +280,12 @@ fn callValue(self: *VM, callee: Value, arg_count: usize) RuntimeError!void {
         switch (callee.OBJ.as) {
             .FUNCTION => |func| {
                 return self.call(func, arg_count);
+            },
+            .NATIVE => |native| {
+                const result = native.function(self.stack[self.stack_top - arg_count ..]);
+                self.stack_top -= arg_count + 1;
+                self.push(result);
+                return;
             },
             else => {},
         }
@@ -384,6 +409,15 @@ fn valuesEqual(a: Value, b: Value) bool {
                 const fun_b = b.OBJ.as.FUNCTION;
                 return fun_a.name == fun_b.name;
             },
+            .NATIVE => {
+                if (b.OBJ.as != .NATIVE) {
+                    return false;
+                }
+
+                const fun_a = a.OBJ.as.NATIVE;
+                const fun_b = b.OBJ.as.NATIVE;
+                return fun_a == fun_b;
+            },
         },
     };
 }
@@ -407,3 +441,15 @@ fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) void {
     self.resetStack();
     self.had_error = true;
 }
+
+const NativeFunctions = struct {
+    fn clock(_: []Value) Value {
+        const timestamp: f64 = @floatFromInt(std.time.milliTimestamp());
+        return .{ .NUMBER = timestamp / std.time.ms_per_s };
+    }
+
+    fn print(args: []Value) Value {
+        StdOut.writer().print("{}\n", .{args[0]}) catch unreachable;
+        return .NIL;
+    }
+};

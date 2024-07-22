@@ -208,7 +208,6 @@ fn identifierType(self: *Scanner) TokenType {
         'i' => return self.checkKeyword(1, 1, "f", .IF),
         'n' => return self.checkKeyword(1, 2, "il", .NIL),
         'o' => return self.checkKeyword(1, 1, "r", .OR),
-        'p' => return self.checkKeyword(1, 4, "rint", .PRINT),
         'r' => return self.checkKeyword(1, 5, "eturn", .RETURN),
         's' => return self.checkKeyword(1, 4, "uper", .SUPER),
         'v' => return self.checkKeyword(1, 2, "ar", .VAR),

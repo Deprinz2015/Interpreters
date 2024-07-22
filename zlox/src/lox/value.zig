@@ -12,6 +12,7 @@ pub const Obj = struct {
     pub const Type = union(enum) {
         STRING: *String,
         FUNCTION: *Function,
+        NATIVE: *NativeFunction,
     };
 
     pub const String = struct {
@@ -29,6 +30,13 @@ pub const Obj = struct {
         arity: u8,
         chunk: Chunk,
         name: ?*String,
+    };
+
+    pub const NativeFunction = struct {
+        obj: *Obj,
+        function: NativeFn,
+
+        pub const NativeFn = *const fn (args: []Value) Value;
     };
 
     pub fn copyString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
@@ -50,6 +58,14 @@ pub const Obj = struct {
         }
 
         return createString(alloc, chars.ptr, chars.len, vm);
+    }
+
+    pub fn createNativeFunction(alloc: Allocator, native_fn: NativeFunction.NativeFn, vm: *VM) *Obj {
+        const function = alloc.create(NativeFunction) catch unreachable;
+        function.function = native_fn;
+        const obj = createObj(alloc, .{ .NATIVE = function }, vm);
+        function.obj = obj;
+        return obj;
     }
 
     pub fn createFunction(alloc: Allocator, vm: *VM) *Obj {
@@ -115,6 +131,9 @@ pub const Value = union(enum) {
                     } else {
                         try writer.writeAll("<script>");
                     }
+                },
+                .NATIVE => {
+                    try writer.writeAll("<native fn>");
                 },
             },
         }
