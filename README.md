@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [24.4](https://craftinginterpreters.com/calls-and-functions.html#function-declarations)
+Currently at Chapter [24.7](https://craftinginterpreters.com/calls-and-functions.html#native-functions)
 
 This Project will contain at least 2 implementations:
 

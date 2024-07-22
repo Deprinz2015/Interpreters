@@ -1,0 +1,20 @@
+fun areWeHavingItYet(count, msg) {
+    for (var i = 0; i < count; i = i + 1) {
+        print msg;
+    }
+}
+
+fun letsIncrement(a) {
+    return a + 1;
+}
+
+areWeHavingItYet(3, "Yes, Sir!");
+areWeHavingItYet(2, "Sir, Yes, Sir!");
+
+var i = 0;
+print "Starting at 0";
+print i = letsIncrement(i);
+print i = letsIncrement(i);
+print i = letsIncrement(i);
+print i = letsIncrement(i);
+

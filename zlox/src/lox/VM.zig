@@ -32,7 +32,8 @@ const BinaryOperation = enum {
 const CallFrame = struct {
     function: *Obj.Function,
     ip: usize,
-    slots: *[STACK_MAX]Value,
+    slots: [*]Value,
+    return_adress: usize,
 };
 
 had_error: bool = false,
@@ -91,19 +92,15 @@ pub fn interpret(self: *VM, alloc: Allocator, source: []const u8) InterpreterRes
     };
 
     self.push(.{ .OBJ = function.obj });
-    const frame = &self.frames[self.frame_count];
-    self.frame_count += 1;
-    frame.* = .{
-        .function = function,
-        .slots = &self.stack,
-        .ip = 0,
+    self.call(function, 0) catch {
+        return .RUNTIME_ERROR;
     };
 
     return self.run();
 }
 
 fn run(self: *VM) InterpreterResult {
-    const frame = self.currentFrame();
+    var frame = self.currentFrame();
     while (true) {
         if (comptime DEBUG_TRACE_EXECUTION) {
             std.debug.print("          ", .{});
@@ -125,6 +122,13 @@ fn run(self: *VM) InterpreterResult {
         switch (instruction) {
             .PRINT => StdOut.writer().print("{}\n", .{self.pop()}) catch unreachable,
             .POP => _ = self.pop(),
+            .CALL => {
+                const arg_count = self.readByte();
+                self.callValue(self.peek(arg_count), arg_count) catch {
+                    return .RUNTIME_ERROR;
+                };
+                frame = self.currentFrame();
+            },
             .JUMP => {
                 const offset = self.readShort();
                 frame.ip += offset;
@@ -171,7 +175,16 @@ fn run(self: *VM) InterpreterResult {
                 frame.slots[slot] = self.peek(0);
             },
             .RETURN => {
-                return .OK;
+                const result = self.pop();
+                self.frame_count -= 1;
+                if (self.frame_count == 0) {
+                    _ = self.pop();
+                    return .OK;
+                }
+
+                self.stack_top = frame.return_adress;
+                self.push(result);
+                frame = self.currentFrame();
             },
             .CONSTANT => {
                 const constant = self.readConstant();
@@ -236,6 +249,46 @@ fn pop(self: *VM) Value {
 
 fn peek(self: *VM, index: usize) Value {
     return self.stack[self.stack_top - index - 1];
+}
+
+const RuntimeError = error{
+    RUNTIME_ERROR,
+    STACK_OVERFLOW,
+};
+
+fn callValue(self: *VM, callee: Value, arg_count: usize) RuntimeError!void {
+    if (callee == .OBJ) {
+        switch (callee.OBJ.as) {
+            .FUNCTION => |func| {
+                return self.call(func, arg_count);
+            },
+            else => {},
+        }
+    }
+
+    self.runtimeError("Can only call functions and classes.", .{});
+    return RuntimeError.RUNTIME_ERROR;
+}
+
+fn call(self: *VM, function: *Obj.Function, arg_count: usize) RuntimeError!void {
+    if (arg_count != function.arity) {
+        self.runtimeError("Expected {d} arguments but got {d}", .{ function.arity, arg_count });
+        return RuntimeError.RUNTIME_ERROR;
+    }
+
+    if (self.frame_count == FRAMES_MAX) {
+        self.runtimeError("Stack overflow", .{});
+        return RuntimeError.STACK_OVERFLOW;
+    }
+
+    const frame = &self.frames[self.frame_count];
+    self.frame_count += 1;
+    frame.* = .{
+        .function = function,
+        .ip = 0,
+        .slots = self.stack[(self.stack_top - arg_count - 1)..].ptr,
+        .return_adress = self.stack_top,
+    };
 }
 
 fn currentFrame(self: *VM) *CallFrame {
@@ -339,9 +392,17 @@ fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) void {
     StdErr.writer().print(format, args) catch {};
     StdErr.writer().writeByte('\n') catch {};
 
-    const frame = self.currentFrame();
-    const line = frame.function.chunk.lines[frame.ip];
-    StdErr.writer().print("[line {d}] in script\n", .{line}) catch {};
+    var i: usize = 0;
+    while (i < self.frame_count) : (i += 1) {
+        const frame = self.frames[self.frame_count - 1 - i];
+        const function = frame.function;
+        StdErr.writer().print("[line {d}] in ", .{function.chunk.lines[frame.ip - 1]}) catch {};
+        if (function.name) |name| {
+            StdErr.writer().print("{s}()\n", .{name.string()}) catch {};
+        } else {
+            StdErr.writeAll("script\n") catch {};
+        }
+    }
     self.resetStack();
     self.had_error = true;
 }
