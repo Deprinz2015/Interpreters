@@ -36,7 +36,7 @@ pub const Obj = struct {
         obj: *Obj,
         function: NativeFn,
 
-        pub const NativeFn = *const fn (args: []Value, alloc: Allocator, vm: *VM) Value;
+        pub const NativeFn = *const fn (args: []Value, vm: *VM) Value;
     };
 
     pub fn copyString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
