@@ -5,6 +5,7 @@ const VM = @import("VM.zig");
 const Chunk = @import("Chunk.zig");
 
 // PERF: Try out data oriented design to optimize and measure
+// TODO: Try with @fieldParentPointer
 pub const Obj = struct {
     as: Type,
     next: ?*Obj,
@@ -37,6 +38,11 @@ pub const Obj = struct {
         function: NativeFn,
 
         pub const NativeFn = *const fn (args: []Value, vm: *VM) Value;
+    };
+
+    pub const Closure = struct {
+        obj: *Obj,
+        function: *Function,
     };
 
     pub fn copyString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
