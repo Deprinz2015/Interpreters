@@ -45,6 +45,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .SUBTRACT => simpleInstruction("OP_SUBTRACT", offset),
         .MULTIPLY => simpleInstruction("OP_MULTIPLY", offset),
         .DIVIDE => simpleInstruction("OP_DIVIDE", offset),
+        .CLOSURE => closureInstruction(chunk, offset),
     };
 }
 
@@ -73,4 +74,12 @@ fn byteInstruction(name: []const u8, chunk: *Chunk, offset: usize) usize {
     const slot = chunk.code[offset + 1];
     std.debug.print("{s: <16} {d: <4}\n", .{ name, slot });
     return offset + 2;
+}
+
+fn closureInstruction(chunk: *Chunk, offset: usize) usize {
+    var new_offset = offset + 1;
+    const constant = chunk.byteAt(new_offset);
+    new_offset += 1;
+    std.debug.print("{s: <16} {d: <4} {}\n", .{ "OP_CLOSURE", constant, chunk.constantAt(new_offset) });
+    return new_offset;
 }

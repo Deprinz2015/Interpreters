@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [25](https://craftinginterpreters.com/closures.html)
+Currently at Chapter [25.2](https://craftinginterpreters.com/closures.html#upvalues)
 
 This Project will contain at least 2 implementations:
 

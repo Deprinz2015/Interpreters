@@ -358,7 +358,7 @@ const Parser = struct {
         self.block();
 
         const function_obj = compiler.endCompiler(self);
-        self.emitBytes(.{ .OPCODE = .CONSTANT }, .{ .RAW = self.makeConstant(.{ .OBJ = function_obj.obj }) });
+        self.emitBytes(.{ .OPCODE = .CLOSURE }, .{ .RAW = self.makeConstant(.{ .OBJ = function_obj.obj }) });
     }
 
     fn namedVariables(self: *Parser, name: Token, can_assign: bool) void {

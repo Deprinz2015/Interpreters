@@ -30,7 +30,7 @@ const BinaryOperation = enum {
 };
 
 const CallFrame = struct {
-    function: *Obj.Function,
+    closure: *Obj.Closure,
     ip: usize,
     slots: [*]Value,
     return_adress: usize,
@@ -82,19 +82,19 @@ fn deinitObjects(self: *VM) void {
 fn freeObject(self: *VM, obj: *Obj) void {
     defer self.alloc.destroy(obj);
     switch (obj.as) {
-        .STRING => {
-            const str = obj.as.STRING;
+        .STRING => |str| {
             self.alloc.free(str.string());
             self.alloc.destroy(str);
         },
-        .FUNCTION => {
-            const function = obj.as.FUNCTION;
+        .FUNCTION => |function| {
             function.chunk.deinit();
             self.alloc.destroy(function);
         },
-        .NATIVE => {
-            const function = obj.as.NATIVE;
+        .NATIVE => |function| {
             self.alloc.destroy(function);
+        },
+        .CLOSURE => |closure| {
+            self.alloc.destroy(closure);
         },
     }
 }
@@ -105,7 +105,10 @@ pub fn interpret(self: *VM, alloc: Allocator, source: []const u8) InterpreterRes
     };
 
     self.push(.{ .OBJ = function.obj });
-    self.call(function, 0) catch {
+    const closure = Obj.createClosure(self.alloc, function, self);
+    _ = self.pop();
+    self.push(.{ .OBJ = closure });
+    self.call(closure.as.CLOSURE, 0) catch {
         return .RUNTIME_ERROR;
     };
 
@@ -127,13 +130,18 @@ fn run(self: *VM) InterpreterResult {
                 std.debug.print("[ empty stack ]", .{});
             }
             std.debug.print("\n", .{});
-            _ = debug.disassembleInstruction(&frame.function.chunk, frame.ip);
+            _ = debug.disassembleInstruction(&frame.closure.function.chunk, frame.ip);
         }
 
         const byte = self.readByte();
         const instruction: OpCode = @enumFromInt(byte);
         switch (instruction) {
             .POP => _ = self.pop(),
+            .CLOSURE => {
+                const function = self.readConstant().OBJ.as.FUNCTION;
+                const closure = Obj.createClosure(self.alloc, function, self);
+                self.push(.{ .OBJ = closure });
+            },
             .CALL => {
                 const arg_count = self.readByte();
                 self.callValue(self.peek(arg_count), arg_count) catch {
@@ -279,8 +287,8 @@ const RuntimeError = error{
 fn callValue(self: *VM, callee: Value, arg_count: usize) RuntimeError!void {
     if (callee == .OBJ) {
         switch (callee.OBJ.as) {
-            .FUNCTION => |func| {
-                return self.call(func, arg_count);
+            .CLOSURE => |closure| {
+                return self.call(closure, arg_count);
             },
             .NATIVE => |native| {
                 const result = native.function(self.stack[self.stack_top - arg_count .. self.stack_top], self);
@@ -299,7 +307,8 @@ fn callValue(self: *VM, callee: Value, arg_count: usize) RuntimeError!void {
     return RuntimeError.RUNTIME_ERROR;
 }
 
-fn call(self: *VM, function: *Obj.Function, arg_count: usize) RuntimeError!void {
+fn call(self: *VM, closure: *Obj.Closure, arg_count: usize) RuntimeError!void {
+    const function = closure.function;
     if (arg_count != function.arity) {
         self.runtimeError("Expected {d} arguments but got {d}", .{ function.arity, arg_count });
         return RuntimeError.RUNTIME_ERROR;
@@ -314,7 +323,7 @@ fn call(self: *VM, function: *Obj.Function, arg_count: usize) RuntimeError!void 
     self.frame_count += 1;
     const frame_start = self.stack_top - arg_count - 1;
     frame.* = .{
-        .function = function,
+        .closure = closure,
         .ip = 0,
         .slots = self.stack[frame_start..].ptr,
         .return_adress = frame_start,
@@ -329,19 +338,19 @@ fn readByte(self: *VM) u8 {
     const frame = self.currentFrame();
     const ip = frame.ip;
     frame.ip += 1;
-    return frame.function.chunk.byteAt(ip);
+    return frame.closure.function.chunk.byteAt(ip);
 }
 
 fn readShort(self: *VM) u16 {
     const frame = self.currentFrame();
     const ip = frame.ip;
     frame.ip += 2;
-    const lhs: u16 = @intCast(frame.function.chunk.byteAt(ip));
-    return (lhs << 8) | frame.function.chunk.byteAt(ip + 1);
+    const lhs: u16 = @intCast(frame.closure.function.chunk.byteAt(ip));
+    return (lhs << 8) | frame.closure.function.chunk.byteAt(ip + 1);
 }
 
 fn readConstant(self: *VM) Value {
-    return self.currentFrame().function.chunk.constantAt(self.readByte());
+    return self.currentFrame().closure.function.chunk.constantAt(self.readByte());
 }
 
 fn binaryOp(self: *VM, op: OpCode) void {
@@ -411,6 +420,10 @@ fn valuesEqual(a: Value, b: Value) bool {
                     const fun_b = obj_b.as.NATIVE;
                     return fun_a == fun_b;
                 },
+                .CLOSURE => |clos_a| {
+                    const clos_b = obj_b.as.CLOSURE;
+                    return clos_a == clos_b;
+                },
             }
         },
     };
@@ -424,7 +437,7 @@ fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) void {
     var i: usize = 0;
     while (i < self.frame_count) : (i += 1) {
         const frame = self.frames[self.frame_count - 1 - i];
-        const function = frame.function;
+        const function = frame.closure.function;
         StdErr.writer().print("[line {d}] in ", .{function.chunk.lines[frame.ip - 1]}) catch {};
         if (function.name) |name| {
             StdErr.writer().print("{s}()\n", .{name.string()}) catch {};

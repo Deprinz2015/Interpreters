@@ -14,6 +14,7 @@ pub const Obj = struct {
         STRING: *String,
         FUNCTION: *Function,
         NATIVE: *NativeFunction,
+        CLOSURE: *Closure,
     };
 
     pub const String = struct {
@@ -64,6 +65,14 @@ pub const Obj = struct {
         }
 
         return createString(alloc, chars.ptr, chars.len, vm);
+    }
+
+    pub fn createClosure(alloc: Allocator, function: *Function, vm: *VM) *Obj {
+        const closure = alloc.create(Closure) catch unreachable;
+        closure.function = function;
+        const obj = createObj(alloc, .{ .CLOSURE = closure }, vm);
+        closure.obj = obj;
+        return obj;
     }
 
     pub fn createNativeFunction(alloc: Allocator, native_fn: NativeFunction.NativeFn, vm: *VM) *Obj {
@@ -121,26 +130,24 @@ pub const Value = union(enum) {
     }
 
     pub fn format(value: Value, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        const Printer = struct {
+            fn printFunction(function: *Obj.Function, inner_writer: anytype) !void {
+                if (function.name) |name| {
+                    try inner_writer.print("<fn {s}>", .{name.string()});
+                } else {
+                    try inner_writer.writeAll("<script>");
+                }
+            }
+        };
         switch (value) {
             .NUMBER => try writer.print("{d}", .{value.NUMBER}),
             .BOOL => try writer.writeAll(if (value.BOOL) "true" else "false"),
             .NIL => try writer.writeAll("nil"),
             .OBJ => |obj| switch (obj.as) {
-                .STRING => {
-                    const str = obj.as.STRING;
-                    try writer.print("{s}", .{str.string()});
-                },
-                .FUNCTION => {
-                    const function = obj.as.FUNCTION;
-                    if (function.name) |name| {
-                        try writer.print("<fn {s}>", .{name.string()});
-                    } else {
-                        try writer.writeAll("<script>");
-                    }
-                },
-                .NATIVE => {
-                    try writer.writeAll("<native fn>");
-                },
+                .STRING => |str| try writer.print("{s}", .{str.string()}),
+                .NATIVE => try writer.writeAll("<native fn>"),
+                .FUNCTION => |function| try Printer.printFunction(function, writer),
+                .CLOSURE => |closure| try Printer.printFunction(closure.function, writer),
             },
         }
     }

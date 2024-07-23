@@ -10,6 +10,7 @@ pub const OpCode = enum(u8) {
     JUMP,
     LOOP,
     CALL,
+    CLOSURE,
     RETURN,
     POP,
     DEFINE_GLOBAL,
