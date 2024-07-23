@@ -1,6 +1,6 @@
 fun areWeHavingItYet(count, msg) {
     for (var i = 0; i < count; i = i + 1) {
-        print msg;
+        print(msg);
     }
 }
 
@@ -11,7 +11,6 @@ fun letsIncrement(a) {
 areWeHavingItYet(3, "Yes, Sir!");
 areWeHavingItYet(2, "Sir, Yes, Sir!");
 
-for (var i = 0; i < 5;) {
-    print i;
-    i = letsIncrement(i);
+for (var i = 0; i < 5; i = letsIncrement(i)) {
+    print("i: " + i);
 }

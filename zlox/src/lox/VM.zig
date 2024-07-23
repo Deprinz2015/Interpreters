@@ -58,6 +58,7 @@ pub fn init(alloc: Allocator) VM {
 
     vm.defineNative("clock", &NativeFunctions.clock);
     vm.defineNative("print", &NativeFunctions.print);
+    vm.defineNative("read", &NativeFunctions.read);
 
     return vm;
 }
@@ -218,12 +219,12 @@ fn run(self: *VM) InterpreterResult {
                     break :add;
                 }
 
-                if (Value.isObjType(self.peek(0), .STRING) and Value.isObjType(self.peek(1), .STRING)) {
+                if (Value.isObjType(self.peek(0), .STRING) or Value.isObjType(self.peek(1), .STRING)) {
                     self.concat();
                     break :add;
                 }
 
-                self.runtimeError("Operands must be two numbers or two strings.", .{});
+                self.runtimeError("Operands must be two numbers or at least a strings.", .{});
                 break;
             },
             .SUBTRACT, .MULTIPLY, .DIVIDE, .LESS, .GREATER => |op| self.binaryOp(op),
@@ -247,7 +248,7 @@ fn run(self: *VM) InterpreterResult {
 fn defineNative(self: *VM, name: []const u8, function: Obj.NativeFunction.NativeFn) void {
     self.push(.{ .OBJ = Obj.copyString(self.alloc, name, self) });
     self.push(.{ .OBJ = Obj.createNativeFunction(self.alloc, function, self) });
-    self.globals.put(self.stack[0].OBJ.as.STRING.string(), self.stack[1]) catch unreachable;
+    self.globals.put(name, self.stack[1]) catch unreachable;
     _ = self.pop();
     _ = self.pop();
 }
@@ -282,7 +283,7 @@ fn callValue(self: *VM, callee: Value, arg_count: usize) RuntimeError!void {
                 return self.call(func, arg_count);
             },
             .NATIVE => |native| {
-                const result = native.function(self.stack[self.stack_top - arg_count ..]);
+                const result = native.function(self.stack[self.stack_top - arg_count ..], self.alloc, self);
                 self.stack_top -= arg_count + 1;
                 self.push(result);
                 return;
@@ -361,10 +362,9 @@ fn binaryOp(self: *VM, op: OpCode) void {
 }
 
 fn concat(self: *VM) void {
-    const str_b = self.pop().OBJ.as.STRING;
-    const str_a = self.pop().OBJ.as.STRING;
-
-    const chars = std.mem.concat(self.alloc, u8, &[_][]const u8{ str_a.string(), str_b.string() }) catch unreachable;
+    const b = self.pop();
+    const a = self.pop();
+    const chars = std.fmt.allocPrint(self.alloc, "{}{}", .{ a, b }) catch unreachable;
     const result = Obj.takeString(self.alloc, chars, self);
     self.push(.{ .OBJ = result });
 }
@@ -390,34 +390,25 @@ fn valuesEqual(a: Value, b: Value) bool {
         .NIL => true,
         .BOOL => a.BOOL == b.BOOL,
         .NUMBER => a.NUMBER == b.NUMBER,
-        .OBJ => switch (a.OBJ.as) {
-            .STRING => {
-                if (b.OBJ.as != .STRING) {
-                    return false;
-                }
-
-                const str_a = a.OBJ.as.STRING;
-                const str_b = b.OBJ.as.STRING;
-                return str_a == str_b;
-            },
-            .FUNCTION => {
-                if (b.OBJ.as != .FUNCTION) {
-                    return false;
-                }
-
-                const fun_a = a.OBJ.as.FUNCTION;
-                const fun_b = b.OBJ.as.FUNCTION;
-                return fun_a.name == fun_b.name;
-            },
-            .NATIVE => {
-                if (b.OBJ.as != .NATIVE) {
-                    return false;
-                }
-
-                const fun_a = a.OBJ.as.NATIVE;
-                const fun_b = b.OBJ.as.NATIVE;
-                return fun_a == fun_b;
-            },
+        .OBJ => |obj_a| {
+            const obj_b = b.OBJ;
+            if (std.meta.activeTag(obj_a.as) != std.meta.activeTag(obj_b.as)) {
+                return false;
+            }
+            switch (obj_a.as) {
+                .STRING => |str_a| {
+                    const str_b = obj_b.as.STRING;
+                    return str_a == str_b;
+                },
+                .FUNCTION => |fun_a| {
+                    const fun_b = obj_b.as.FUNCTION;
+                    return fun_a.name == fun_b.name;
+                },
+                .NATIVE => |fun_a| {
+                    const fun_b = obj_b.as.NATIVE;
+                    return fun_a == fun_b;
+                },
+            }
         },
     };
 }
@@ -443,13 +434,25 @@ fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) void {
 }
 
 const NativeFunctions = struct {
-    fn clock(_: []Value) Value {
+    const StdIn = std.io.getStdIn();
+
+    fn clock(_: []Value, _: Allocator, _: *VM) Value {
         const timestamp: f64 = @floatFromInt(std.time.milliTimestamp());
         return .{ .NUMBER = timestamp / std.time.ms_per_s };
     }
 
-    fn print(args: []Value) Value {
+    fn print(args: []Value, _: Allocator, _: *VM) Value {
         StdOut.writer().print("{}\n", .{args[0]}) catch unreachable;
         return .NIL;
+    }
+
+    fn read(args: []Value, alloc: Allocator, vm: *VM) Value {
+        StdOut.writer().print("{}\n", .{args[0]}) catch unreachable;
+        const input = StdIn.reader().readUntilDelimiterAlloc(alloc, '\n', 1024) catch unreachable;
+        defer alloc.free(input);
+        const floatVal = std.fmt.parseFloat(f64, input) catch {
+            return .{ .OBJ = Obj.copyString(alloc, input, vm) };
+        };
+        return .{ .NUMBER = floatVal };
     }
 };
