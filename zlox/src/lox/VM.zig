@@ -283,7 +283,10 @@ fn callValue(self: *VM, callee: Value, arg_count: usize) RuntimeError!void {
                 return self.call(func, arg_count);
             },
             .NATIVE => |native| {
-                const result = native.function(self.stack[self.stack_top - arg_count ..], self.alloc, self);
+                const result = native.function(self.stack[self.stack_top - arg_count .. self.stack_top], self.alloc, self);
+                if (self.had_error) {
+                    return;
+                }
                 self.stack_top -= arg_count + 1;
                 self.push(result);
                 return;
@@ -436,18 +439,48 @@ fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) void {
 const NativeFunctions = struct {
     const StdIn = std.io.getStdIn();
 
-    fn clock(_: []Value, _: Allocator, _: *VM) Value {
+    fn clock(args: []Value, _: Allocator, vm: *VM) Value {
+        if (args.len != 0) {
+            vm.runtimeError("native function 'clock' does not expect any arguments. Got {d} arguments.", .{args.len});
+            return .NIL;
+        }
+
         const timestamp: f64 = @floatFromInt(std.time.milliTimestamp());
         return .{ .NUMBER = timestamp / std.time.ms_per_s };
     }
 
-    fn print(args: []Value, _: Allocator, _: *VM) Value {
+    fn print(args: []Value, _: Allocator, vm: *VM) Value {
+        if (args.len != 1) {
+            vm.runtimeError("native function 'print' expects 1 argument, got {d} arguments.", .{args.len});
+            return .NIL;
+        }
+
         StdOut.writer().print("{}\n", .{args[0]}) catch unreachable;
         return .NIL;
     }
 
     fn read(args: []Value, alloc: Allocator, vm: *VM) Value {
-        StdOut.writer().print("{}\n", .{args[0]}) catch unreachable;
+        if (args.len != 1 and args.len != 2) {
+            vm.runtimeError("native function 'read' expects 1 or 2 arguments, got {d} arguments.", .{args.len});
+            return .NIL;
+        }
+
+        const new_line = new_line: {
+            if (args.len != 2) {
+                break :new_line false;
+            }
+            if (args[1] != .BOOL) {
+                vm.runtimeError("native function 'read' expects second argument to be bool.", .{});
+                return .NIL;
+            }
+
+            break :new_line args[1].BOOL;
+        };
+
+        StdOut.writer().print("{}", .{args[0]}) catch unreachable;
+        if (new_line) {
+            StdOut.writeAll("\n") catch unreachable;
+        }
         const input = StdIn.reader().readUntilDelimiterAlloc(alloc, '\n', 1024) catch unreachable;
         defer alloc.free(input);
         const floatVal = std.fmt.parseFloat(f64, input) catch {

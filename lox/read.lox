@@ -9,3 +9,13 @@ if (age > 20) {
 if (age < 18) {
     print("Ha, you can't even drive alone.");
 }
+
+age = read("How old is your friend? ", false);
+
+print("Your friend is " + age + " years old.");
+
+var count = read("Count up to: ", true);
+
+for(var i = 0; i < count; i = i + 1) {
+    print("Counting... " + (i + 1));
+}
