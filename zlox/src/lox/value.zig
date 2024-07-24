@@ -15,6 +15,7 @@ pub const Obj = struct {
         FUNCTION: *Function,
         NATIVE: *NativeFunction,
         CLOSURE: *Closure,
+        UPVALUE: *Upvalue,
     };
 
     pub const String = struct {
@@ -30,6 +31,7 @@ pub const Obj = struct {
     pub const Function = struct {
         obj: *Obj,
         arity: u8,
+        upvalue_count: u8,
         chunk: Chunk,
         name: ?*String,
     };
@@ -44,6 +46,13 @@ pub const Obj = struct {
     pub const Closure = struct {
         obj: *Obj,
         function: *Function,
+        upvalue_count: u8,
+        upvalues: []*Upvalue,
+    };
+
+    pub const Upvalue = struct {
+        obj: *Obj,
+        location: *Value,
     };
 
     pub fn copyString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
@@ -67,9 +76,20 @@ pub const Obj = struct {
         return createString(alloc, chars.ptr, chars.len, vm);
     }
 
+    pub fn createUpvalue(alloc: Allocator, slot: *Value, vm: *VM) *Obj {
+        const upvalue = alloc.create(Upvalue) catch unreachable;
+        upvalue.location = slot;
+        const obj = createObj(alloc, .{ .UPVALUE = upvalue }, vm);
+        upvalue.obj = obj;
+        return obj;
+    }
+
     pub fn createClosure(alloc: Allocator, function: *Function, vm: *VM) *Obj {
+        const upvalues = alloc.alloc(*Upvalue, function.upvalue_count) catch unreachable;
         const closure = alloc.create(Closure) catch unreachable;
         closure.function = function;
+        closure.upvalue_count = function.upvalue_count;
+        closure.upvalues = upvalues;
         const obj = createObj(alloc, .{ .CLOSURE = closure }, vm);
         closure.obj = obj;
         return obj;
@@ -86,6 +106,7 @@ pub const Obj = struct {
     pub fn createFunction(alloc: Allocator, vm: *VM) *Obj {
         const function = alloc.create(Function) catch unreachable;
         function.arity = 0;
+        function.upvalue_count = 0;
         function.name = null;
         function.chunk = Chunk.init(alloc);
         const obj = createObj(alloc, .{ .FUNCTION = function }, vm);
@@ -144,6 +165,7 @@ pub const Value = union(enum) {
             .BOOL => try writer.writeAll(if (value.BOOL) "true" else "false"),
             .NIL => try writer.writeAll("nil"),
             .OBJ => |obj| switch (obj.as) {
+                .UPVALUE => try writer.writeAll("upvalue"),
                 .STRING => |str| try writer.print("{s}", .{str.string()}),
                 .NATIVE => try writer.writeAll("<native fn>"),
                 .FUNCTION => |function| try Printer.printFunction(function, writer),

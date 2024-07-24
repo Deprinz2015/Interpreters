@@ -1,5 +1,6 @@
 const DEBUG_PRINT_CODE = @import("config").chunk_trace;
 const LOCAL_COUNT = 256;
+const UPVALUE_COUNT = 256;
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -359,22 +360,36 @@ const Parser = struct {
 
         const function_obj = compiler.endCompiler(self);
         self.emitBytes(.{ .OPCODE = .CLOSURE }, .{ .RAW = self.makeConstant(.{ .OBJ = function_obj.obj }) });
+
+        for (compiler.upvalues, 0..) |upvalue, i| {
+            if (i >= function_obj.upvalue_count) {
+                break;
+            }
+
+            self.emitByte(.{ .RAW = if (upvalue.is_local) 1 else 0 });
+            self.emitByte(.{ .RAW = upvalue.index });
+        }
     }
 
     fn namedVariables(self: *Parser, name: Token, can_assign: bool) void {
-        var local = true;
+        var local = false;
+        var upvalue = false;
         const arg: u8 = arg: {
-            const idx = self.resolveLocal(name);
-            if (idx != -1) {
-                break :arg @intCast(idx);
+            if (self.resolveLocal(self.compiler, name)) |idx| {
+                local = true;
+                break :arg idx;
             }
 
-            local = false;
+            if (self.resolveUpvalue(self.compiler, name)) |idx| {
+                upvalue = true;
+                break :arg idx;
+            }
+
             break :arg self.identifierConstant(name);
         };
 
-        const getOp: Chunk.OpCode = if (local) .GET_LOCAL else .GET_GLOBAL;
-        const setOp: Chunk.OpCode = if (local) .SET_LOCAL else .SET_GLOBAL;
+        const getOp: Chunk.OpCode = if (local) .GET_LOCAL else if (upvalue) .GET_UPVALUE else .GET_GLOBAL;
+        const setOp: Chunk.OpCode = if (local) .SET_LOCAL else if (upvalue) .SET_UPVALUE else .SET_GLOBAL;
 
         if (can_assign and self.match(.EQUAL)) {
             self.expression();
@@ -489,10 +504,10 @@ const Parser = struct {
         return self.makeConstant(.{ .OBJ = Obj.copyString(self.alloc, name.start[0..name.length], self.vm) });
     }
 
-    fn resolveLocal(self: *Parser, name: Token) i9 {
+    fn resolveLocal(self: *Parser, compiler: *Compiler, name: Token) ?u8 {
         var idx: usize = 0;
-        while (idx < self.compiler.local_count) : (idx += 1) {
-            const local = self.compiler.locals[idx];
+        while (idx < compiler.local_count) : (idx += 1) {
+            const local = compiler.locals[idx];
             if (identifiersEqual(name, local.name)) {
                 if (local.depth == -1) {
                     self.emitError("Can't read local variable in its own initializer.");
@@ -501,7 +516,33 @@ const Parser = struct {
             }
         }
 
-        return -1;
+        return null;
+    }
+
+    fn resolveUpvalue(self: *Parser, compiler: *Compiler, name: Token) ?u8 {
+        if (compiler.enclosing == null) {
+            return null;
+        }
+
+        if (self.resolveLocal(compiler.enclosing.?, name)) |idx| {
+            return compiler.addUpvalue(idx, true) catch |err| switch (err) {
+                Compiler.Error.TooManyVariables => {
+                    self.emitError("Too many closure variables in function.");
+                    return null;
+                },
+            };
+        }
+
+        if (self.resolveUpvalue(compiler.enclosing.?, name)) |idx| {
+            return compiler.addUpvalue(idx, false) catch |err| switch (err) {
+                Compiler.Error.TooManyVariables => {
+                    self.emitError("Too many closure variables in function.");
+                    return null;
+                },
+            };
+        }
+
+        return null;
     }
 
     fn defineVariable(self: *Parser, global: u8) void {
@@ -710,6 +751,7 @@ const Compiler = struct {
     function: *Obj.Function,
     fun_type: FunctionType,
     locals: [LOCAL_COUNT]Local = .{undefined} ** LOCAL_COUNT,
+    upvalues: [UPVALUE_COUNT]Upvalue = .{undefined} ** UPVALUE_COUNT,
     local_count: usize = 0,
     scope_depth: isize = 0,
 
@@ -725,6 +767,11 @@ const Compiler = struct {
     const Local = struct {
         name: Token,
         depth: isize,
+    };
+
+    const Upvalue = struct {
+        index: u8,
+        is_local: bool,
     };
 
     fn init(alloc: Allocator, fun_type: FunctionType, enclosing: ?*Compiler, vm: *VM) Compiler {
@@ -760,6 +807,31 @@ const Compiler = struct {
             .name = name,
             .depth = -1,
         };
+    }
+
+    fn addUpvalue(self: *Compiler, idx: u8, is_local: bool) !u8 {
+        const upvalue_count = self.function.upvalue_count;
+
+        for (self.upvalues, 0..) |upvalue, i| {
+            if (i >= upvalue_count) {
+                break;
+            }
+
+            if (upvalue.index == idx and upvalue.is_local == is_local) {
+                return @intCast(i);
+            }
+        }
+
+        if (upvalue_count == UPVALUE_COUNT) {
+            return Compiler.Error.TooManyVariables;
+        }
+
+        self.upvalues[upvalue_count] = .{
+            .is_local = is_local,
+            .index = idx,
+        };
+        self.function.upvalue_count += 1;
+        return @intCast(upvalue_count);
     }
 
     fn endCompiler(self: *Compiler, parser: *Parser) *Obj.Function {

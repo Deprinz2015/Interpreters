@@ -81,6 +81,7 @@ fn deinitObjects(self: *VM) void {
 
 fn freeObject(self: *VM, obj: *Obj) void {
     defer self.alloc.destroy(obj);
+    // TODO: Collapse similar switch branches
     switch (obj.as) {
         .STRING => |str| {
             self.alloc.free(str.string());
@@ -94,7 +95,11 @@ fn freeObject(self: *VM, obj: *Obj) void {
             self.alloc.destroy(function);
         },
         .CLOSURE => |closure| {
+            self.alloc.free(closure.upvalues);
             self.alloc.destroy(closure);
+        },
+        .UPVALUE => |upvalue| {
+            self.alloc.destroy(upvalue);
         },
     }
 }
@@ -139,8 +144,18 @@ fn run(self: *VM) InterpreterResult {
             .POP => _ = self.pop(),
             .CLOSURE => {
                 const function = self.readConstant().OBJ.as.FUNCTION;
-                const closure = Obj.createClosure(self.alloc, function, self);
-                self.push(.{ .OBJ = closure });
+                const closure = Obj.createClosure(self.alloc, function, self).as.CLOSURE;
+                self.push(.{ .OBJ = closure.obj });
+                var idx: usize = 0;
+                while (idx < closure.upvalue_count) : (idx += 1) {
+                    const is_local = self.readByte() == 1;
+                    const index = self.readByte();
+                    if (is_local) {
+                        closure.upvalues[idx] = self.captureUpvalue(&frame.slots[index]);
+                    } else {
+                        closure.upvalues[idx] = frame.closure.upvalues[index];
+                    }
+                }
             },
             .CALL => {
                 const arg_count = self.readByte();
@@ -193,6 +208,14 @@ fn run(self: *VM) InterpreterResult {
             .SET_LOCAL => {
                 const slot = self.readByte();
                 frame.slots[slot] = self.peek(0);
+            },
+            .GET_UPVALUE => {
+                const slot = self.readByte();
+                self.push(frame.closure.upvalues[slot].location.*);
+            },
+            .SET_UPVALUE => {
+                const slot = self.readByte();
+                frame.closure.upvalues[slot].location.* = self.peek(0);
             },
             .RETURN => {
                 const result = self.pop();
@@ -277,6 +300,11 @@ fn pop(self: *VM) Value {
 
 fn peek(self: *VM, index: usize) Value {
     return self.stack[self.stack_top - index - 1];
+}
+
+fn captureUpvalue(self: *VM, local: *Value) *Obj.Upvalue {
+    const upvalue = Obj.createUpvalue(self.alloc, local, self).as.UPVALUE;
+    return upvalue;
 }
 
 const RuntimeError = error{
@@ -423,6 +451,10 @@ fn valuesEqual(a: Value, b: Value) bool {
                 .CLOSURE => |clos_a| {
                     const clos_b = obj_b.as.CLOSURE;
                     return clos_a == clos_b;
+                },
+                .UPVALUE => |up_a| {
+                    const up_b = obj_b.as.UPVALUE;
+                    return valuesEqual(up_a.location.*, up_b.location.*);
                 },
             }
         },

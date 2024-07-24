@@ -32,6 +32,8 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .SET_GLOBAL => constantInstruction("OP_SET_GLOBAL", chunk, offset),
         .GET_LOCAL => byteInstruction("OP_GET_LOCAL", chunk, offset),
         .SET_LOCAL => byteInstruction("OP_SET_LOCAL", chunk, offset),
+        .GET_UPVALUE => byteInstruction("OP_GET_UPVALUE", chunk, offset),
+        .SET_UPVALUE => byteInstruction("OP_SET_UPVALUE", chunk, offset),
         .CONSTANT => constantInstruction("OP_CONSTANT", chunk, offset),
         .TRUE => simpleInstruction("OP_TRUE", offset),
         .FALSE => simpleInstruction("OP_FALSE", offset),
@@ -80,6 +82,15 @@ fn closureInstruction(chunk: *Chunk, offset: usize) usize {
     var new_offset = offset + 1;
     const constant = chunk.byteAt(new_offset);
     new_offset += 1;
-    std.debug.print("{s: <16} {d: <4} {}\n", .{ "OP_CLOSURE", constant, chunk.constantAt(new_offset) });
+    std.debug.print("{s: <16} {d: <4} {}\n", .{ "OP_CLOSURE", constant, chunk.constantAt(constant) });
+
+    const function = chunk.constantAt(constant).OBJ.as.FUNCTION;
+    var i: usize = 0;
+    while (i < function.upvalue_count) : (i += 1) {
+        const is_local = chunk.byteAt(new_offset) == 1;
+        const index = chunk.byteAt(new_offset + 1);
+        std.debug.print("{d:0>4}      |                     {s} {d}\n", .{ new_offset, if (is_local) "local" else "upvalue", index });
+        new_offset += 2;
+    }
     return new_offset;
 }

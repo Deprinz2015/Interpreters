@@ -1,0 +1,13 @@
+fun outer() {
+    var x = "outside";
+    fun inner() {
+        fun theInnerest() {
+            print("innerest: " + x);
+        }
+        theInnerest();
+        print("inner: " + x);
+    }
+    inner();
+    print("outer: " + x);
+}
+outer();
