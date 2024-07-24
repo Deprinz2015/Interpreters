@@ -44,6 +44,7 @@ strings: std.StringHashMap(*Obj.String),
 globals: std.StringHashMap(Value),
 stack: []Value,
 stack_top: usize,
+open_upvalues: ?*Obj.Upvalue,
 alloc: Allocator,
 
 pub fn init(alloc: Allocator) VM {
@@ -54,6 +55,7 @@ pub fn init(alloc: Allocator) VM {
         .alloc = alloc,
         .strings = std.StringHashMap(*Obj.String).init(alloc),
         .globals = std.StringHashMap(Value).init(alloc),
+        .open_upvalues = null,
     };
 
     vm.defineNative("clock", &NativeFunctions.clock);
@@ -142,6 +144,10 @@ fn run(self: *VM) InterpreterResult {
         const instruction: OpCode = @enumFromInt(byte);
         switch (instruction) {
             .POP => _ = self.pop(),
+            .CLOSE_UPVALUE => {
+                self.closeUpvalues(&self.stack[self.stack_top - 1]);
+                _ = self.pop();
+            },
             .CLOSURE => {
                 const function = self.readConstant().OBJ.as.FUNCTION;
                 const closure = Obj.createClosure(self.alloc, function, self).as.CLOSURE;
@@ -219,6 +225,7 @@ fn run(self: *VM) InterpreterResult {
             },
             .RETURN => {
                 const result = self.pop();
+                self.closeUpvalues(&frame.slots[0]);
                 self.frame_count -= 1;
                 if (self.frame_count == 0) {
                     _ = self.pop();
@@ -303,8 +310,38 @@ fn peek(self: *VM, index: usize) Value {
 }
 
 fn captureUpvalue(self: *VM, local: *Value) *Obj.Upvalue {
+    var prev_upvalue: ?*Obj.Upvalue = null;
+    var current_upvalue = self.open_upvalues;
+    while (current_upvalue != null and @intFromPtr(current_upvalue.?.location) > @intFromPtr(local)) {
+        prev_upvalue = current_upvalue;
+        current_upvalue = current_upvalue.?.next;
+    }
+
+    if (current_upvalue) |upvalue| {
+        if (upvalue.location == local) {
+            return upvalue;
+        }
+    }
+
     const upvalue = Obj.createUpvalue(self.alloc, local, self).as.UPVALUE;
+    upvalue.next = current_upvalue;
+
+    if (prev_upvalue) |prev| {
+        prev.next = upvalue;
+    } else {
+        self.open_upvalues = upvalue;
+    }
+
     return upvalue;
+}
+
+fn closeUpvalues(self: *VM, last: *Value) void {
+    while (self.open_upvalues != null and @intFromPtr(self.open_upvalues.?.location) >= @intFromPtr(last)) {
+        const upvalue = self.open_upvalues.?;
+        upvalue.closed = upvalue.location.*;
+        upvalue.location = &upvalue.closed;
+        self.open_upvalues = upvalue.next;
+    }
 }
 
 const RuntimeError = error{

@@ -53,6 +53,8 @@ pub const Obj = struct {
     pub const Upvalue = struct {
         obj: *Obj,
         location: *Value,
+        closed: Value,
+        next: ?*Upvalue,
     };
 
     pub fn copyString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
@@ -79,6 +81,8 @@ pub const Obj = struct {
     pub fn createUpvalue(alloc: Allocator, slot: *Value, vm: *VM) *Obj {
         const upvalue = alloc.create(Upvalue) catch unreachable;
         upvalue.location = slot;
+        upvalue.next = null;
+        upvalue.closed = .NIL;
         const obj = createObj(alloc, .{ .UPVALUE = upvalue }, vm);
         upvalue.obj = obj;
         return obj;

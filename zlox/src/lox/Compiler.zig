@@ -525,6 +525,7 @@ const Parser = struct {
         }
 
         if (self.resolveLocal(compiler.enclosing.?, name)) |idx| {
+            compiler.enclosing.?.locals[idx].is_captured = true;
             return compiler.addUpvalue(idx, true) catch |err| switch (err) {
                 Compiler.Error.TooManyVariables => {
                     self.emitError("Too many closure variables in function.");
@@ -622,7 +623,11 @@ const Parser = struct {
         self.compiler.scope_depth -= 1;
 
         while (self.compiler.local_count > 0 and self.compiler.locals[self.compiler.local_count - 1].depth > self.compiler.scope_depth) {
-            self.emitByte(.{ .OPCODE = .POP });
+            if (self.compiler.locals[self.compiler.local_count - 1].is_captured) {
+                self.emitByte(.{ .OPCODE = .CLOSE_UPVALUE });
+            } else {
+                self.emitByte(.{ .OPCODE = .POP });
+            }
             self.compiler.local_count += 1;
         }
     }
@@ -767,6 +772,7 @@ const Compiler = struct {
     const Local = struct {
         name: Token,
         depth: isize,
+        is_captured: bool,
     };
 
     const Upvalue = struct {
@@ -786,6 +792,7 @@ const Compiler = struct {
         compiler.local_count += 1;
         local.* = .{
             .depth = 0,
+            .is_captured = false,
             .name = .{
                 .token_type = .IDENTIFIER,
                 .start = "",
@@ -806,6 +813,7 @@ const Compiler = struct {
         local.* = .{
             .name = name,
             .depth = -1,
+            .is_captured = false,
         };
     }
 

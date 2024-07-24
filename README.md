@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [25.4](https://craftinginterpreters.com/closures.html#closed-upvalues)
+Currently at Chapter [26](https://craftinginterpreters.com/garbage-collection.html)
 
 This Project will contain at least 2 implementations:
 

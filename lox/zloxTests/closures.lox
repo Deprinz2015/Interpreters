@@ -1,3 +1,4 @@
+print("Simple Closures");
 fun outer() {
     var x = "outside";
     fun inner() {
@@ -11,3 +12,16 @@ fun outer() {
     print("outer: " + x);
 }
 outer();
+
+print("Complex Closures");
+fun outer() {
+  var x = "outside";
+  fun inner() {
+    print(x);
+  }
+
+  return inner;
+}
+
+var closure = outer();
+closure();
