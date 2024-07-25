@@ -8,142 +8,176 @@ const Chunk = @import("Chunk.zig");
 
 // TODO: Try with @fieldParentPointer
 pub const Obj = struct {
-    as: Type,
+    type: Type,
     next: ?*Obj,
 
-    pub const Type = union(enum) {
-        STRING: *String,
-        FUNCTION: *Function,
-        NATIVE: *NativeFunction,
-        CLOSURE: *Closure,
-        UPVALUE: *Upvalue,
+    pub fn as(self: *Obj, comptime T: Type) *T.getType() {
+        return @fieldParentPtr("obj", self);
+    }
+
+    pub fn destroy(self: *Obj, alloc: Allocator) void {
+        switch (self.type) {
+            .STRING => self.as(.STRING).destroy(alloc),
+            .FUNCTION => self.as(.FUNCTION).destroy(alloc),
+            .NATIVE => self.as(.NATIVE).destroy(alloc),
+            .CLOSURE => self.as(.CLOSURE).destroy(alloc),
+            .UPVALUE => self.as(.UPVALUE).destroy(alloc),
+        }
+    }
+
+    pub const Type = enum {
+        STRING,
+        FUNCTION,
+        NATIVE,
+        CLOSURE,
+        UPVALUE,
+
+        inline fn getType(self: *const Type) type {
+            return switch (self.*) {
+                .STRING => String,
+                .FUNCTION => Function,
+                .NATIVE => Native,
+                .CLOSURE => Closure,
+                .UPVALUE => Upvalue,
+            };
+        }
     };
 
     pub const String = struct {
-        obj: *Obj,
-        length: usize,
-        chars: [*]const u8,
+        obj: Obj,
+        chars: []const u8,
 
-        pub fn string(self: *String) []const u8 {
-            return self.chars[0..self.length];
+        pub fn copy(alloc: Allocator, chars: []const u8, vm: *VM) *String {
+            const maybe_interned = vm.strings.get(chars);
+            if (maybe_interned) |interned| {
+                return interned;
+            }
+
+            const heap_string = alloc.alloc(u8, chars.len) catch unreachable;
+            @memcpy(heap_string, chars);
+            return create(alloc, heap_string, vm);
+        }
+
+        pub fn take(alloc: Allocator, chars: []const u8, vm: *VM) *String {
+            const maybe_interned = vm.strings.get(chars);
+            if (maybe_interned) |interned| {
+                alloc.free(chars);
+                return interned;
+            }
+
+            return String.create(alloc, chars, vm);
+        }
+
+        fn create(alloc: Allocator, chars: []const u8, vm: *VM) *String {
+            const obj = Obj.allocObj(alloc, .STRING, vm);
+            const string = obj.as(.STRING);
+            string.chars = chars;
+            return string;
+        }
+
+        fn destroy(self: *String, alloc: Allocator) void {
+            alloc.free(self.chars);
+            alloc.destroy(self);
         }
     };
 
     pub const Function = struct {
-        obj: *Obj,
+        obj: Obj,
         arity: u8,
         upvalue_count: u8,
         chunk: Chunk,
         name: ?*String,
+
+        pub fn create(alloc: Allocator, vm: *VM) *Function {
+            const obj = Obj.allocObj(alloc, .FUNCTION, vm);
+            const function = obj.as(.FUNCTION);
+            function.arity = 0;
+            function.upvalue_count = 0;
+            function.name = null;
+            function.chunk = Chunk.init(alloc);
+            return function;
+        }
+
+        fn destroy(self: *Function, alloc: Allocator) void {
+            self.chunk.deinit();
+            alloc.destroy(self);
+        }
     };
 
-    pub const NativeFunction = struct {
-        obj: *Obj,
+    pub const Native = struct {
+        obj: Obj,
         function: NativeFn,
 
         pub const NativeFn = *const fn (args: []Value, vm: *VM) Value;
+
+        pub fn create(alloc: Allocator, native_fn: Native.NativeFn, vm: *VM) *Native {
+            const obj = Obj.allocObj(alloc, .NATIVE, vm);
+            const function = obj.as(.NATIVE);
+            function.function = native_fn;
+            return function;
+        }
+
+        fn destroy(self: *Native, alloc: Allocator) void {
+            alloc.destroy(self);
+        }
     };
 
     pub const Closure = struct {
-        obj: *Obj,
+        obj: Obj,
         function: *Function,
         upvalue_count: u8,
-        upvalues: []*Upvalue,
+        upvalues: []?*Upvalue,
+
+        pub fn create(alloc: Allocator, function: *Function, vm: *VM) *Closure {
+            const upvalues = alloc.alloc(?*Upvalue, function.upvalue_count) catch unreachable;
+            for (upvalues) |*upvalue| {
+                upvalue.* = null;
+            }
+
+            const obj = Obj.allocObj(alloc, .CLOSURE, vm);
+            const closure = obj.as(.CLOSURE);
+            closure.function = function;
+            closure.upvalue_count = function.upvalue_count;
+            closure.upvalues = upvalues;
+            return closure;
+        }
+
+        fn destroy(self: *Closure, alloc: Allocator) void {
+            alloc.free(self.upvalues);
+            alloc.destroy(self);
+        }
     };
 
     pub const Upvalue = struct {
-        obj: *Obj,
+        obj: Obj,
         location: *Value,
         closed: Value,
         next: ?*Upvalue,
+
+        pub fn create(alloc: Allocator, slot: *Value, vm: *VM) *Upvalue {
+            const obj = Obj.allocObj(alloc, .UPVALUE, vm);
+            const upvalue = obj.as(.UPVALUE);
+            upvalue.location = slot;
+            upvalue.next = null;
+            upvalue.closed = .NIL;
+            return upvalue;
+        }
+
+        fn destroy(self: *Upvalue, alloc: Allocator) void {
+            alloc.destroy(self);
+        }
     };
 
-    pub fn copyString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
-        const interned = vm.strings.get(chars);
-        if (interned) |_| {
-            return interned.?.obj;
-        }
+    fn allocObj(alloc: Allocator, comptime T: Type, vm: *VM) *Obj {
+        const ptr = alloc.create(T.getType()) catch unreachable;
+        ptr.obj = .{
+            .type = T,
+            .next = vm.objects,
+        };
 
-        const heap_string = alloc.alloc(u8, chars.len) catch unreachable;
-        @memcpy(heap_string, chars);
-        return createString(alloc, heap_string.ptr, heap_string.len, vm);
-    }
+        vm.objects = &ptr.obj;
 
-    pub fn takeString(alloc: Allocator, chars: []const u8, vm: *VM) *Obj {
-        const maybe_interned = vm.strings.get(chars);
-        if (maybe_interned) |interned| {
-            alloc.free(chars);
-            return interned.obj;
-        }
-
-        return createString(alloc, chars.ptr, chars.len, vm);
-    }
-
-    pub fn createUpvalue(alloc: Allocator, slot: *Value, vm: *VM) *Obj {
-        const obj = allocObject(Upvalue, alloc, .UPVALUE, vm);
-        const upvalue = obj.as.UPVALUE;
-        upvalue.location = slot;
-        upvalue.next = null;
-        upvalue.closed = .NIL;
-        return obj;
-    }
-
-    pub fn createClosure(alloc: Allocator, function: *Function, vm: *VM) *Obj {
-        const upvalues = alloc.alloc(*Upvalue, function.upvalue_count) catch unreachable;
-        const obj = allocObject(Closure, alloc, .CLOSURE, vm);
-        const closure = obj.as.CLOSURE;
-        closure.function = function;
-        closure.upvalue_count = function.upvalue_count;
-        closure.upvalues = upvalues;
-        return obj;
-    }
-
-    pub fn createNativeFunction(alloc: Allocator, native_fn: NativeFunction.NativeFn, vm: *VM) *Obj {
-        const obj = allocObject(NativeFunction, alloc, .NATIVE, vm);
-        const function = obj.as.NATIVE;
-        function.function = native_fn;
-        return obj;
-    }
-
-    pub fn createFunction(alloc: Allocator, vm: *VM) *Obj {
-        const obj = allocObject(Function, alloc, .FUNCTION, vm);
-        const function = obj.as.FUNCTION;
-        function.arity = 0;
-        function.upvalue_count = 0;
-        function.name = null;
-        function.chunk = Chunk.init(alloc);
-        return obj;
-    }
-
-    fn createString(alloc: Allocator, chars: [*]const u8, length: usize, vm: *VM) *Obj {
-        const obj = allocObject(String, alloc, .STRING, vm);
-        const string = obj.as.STRING;
-        string.chars = chars;
-        string.length = length;
-        vm.strings.put(string.string(), string) catch unreachable;
-        return obj;
-    }
-
-    fn createObj(alloc: Allocator, concrete_obj: Type, vm: *VM) *Obj {
-        const obj = alloc.create(Obj) catch unreachable;
-        obj.as = concrete_obj;
-        obj.next = null;
-
-        if (vm.objects == null) {
-            vm.objects = obj;
-        } else {
-            obj.next = vm.objects;
-            vm.objects = obj;
-        }
-
-        return obj;
-    }
-
-    inline fn allocObject(comptime T: type, alloc: Allocator, obj_type: std.meta.Tag(Type), vm: *VM) *Obj {
-        const concrete = alloc.create(T) catch unreachable;
-        const obj = createObj(alloc, @unionInit(Type, @tagName(obj_type), concrete), vm);
-        concrete.obj = obj;
-        return obj;
+        return &ptr.obj;
     }
 };
 
@@ -153,15 +187,15 @@ pub const Value = union(enum) {
     NIL: void,
     OBJ: *Obj,
 
-    pub inline fn isObjType(value: Value, obj_type: std.meta.Tag(Obj.Type)) bool {
-        return value == .OBJ and value.OBJ.as == obj_type;
+    pub inline fn isObjType(value: Value, obj_type: Obj.Type) bool {
+        return value == .OBJ and value.OBJ.type == obj_type;
     }
 
     pub fn format(value: Value, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         const Printer = struct {
             fn printFunction(function: *Obj.Function, inner_writer: anytype) !void {
                 if (function.name) |name| {
-                    try inner_writer.print("<fn {s}>", .{name.string()});
+                    try inner_writer.print("<fn {s}>", .{name.chars});
                 } else {
                     try inner_writer.writeAll("<script>");
                 }
@@ -171,12 +205,12 @@ pub const Value = union(enum) {
             .NUMBER => try writer.print("{d}", .{value.NUMBER}),
             .BOOL => try writer.writeAll(if (value.BOOL) "true" else "false"),
             .NIL => try writer.writeAll("nil"),
-            .OBJ => |obj| switch (obj.as) {
+            .OBJ => |obj| switch (obj.type) {
                 .UPVALUE => try writer.writeAll("upvalue"),
-                .STRING => |str| try writer.print("{s}", .{str.string()}),
+                .STRING => try writer.print("{s}", .{obj.as(.STRING).chars}),
                 .NATIVE => try writer.writeAll("<native fn>"),
-                .FUNCTION => |function| try Printer.printFunction(function, writer),
-                .CLOSURE => |closure| try Printer.printFunction(closure.function, writer),
+                .FUNCTION => try Printer.printFunction(obj.as(.FUNCTION), writer),
+                .CLOSURE => try Printer.printFunction(obj.as(.CLOSURE).function, writer),
             },
         }
     }

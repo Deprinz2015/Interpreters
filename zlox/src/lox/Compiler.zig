@@ -327,7 +327,8 @@ const Parser = struct {
 
     fn string(self: *Parser, _: ParseArguments) void {
         const previous = self.previousLexeme();
-        self.emitConstant(.{ .OBJ = Obj.copyString(self.alloc, previous[1 .. previous.len - 1], self.vm) });
+
+        self.emitConstant(self.stringValue(previous[1 .. previous.len - 1]));
     }
 
     fn variable(self: *Parser, arguments: ParseArguments) void {
@@ -337,7 +338,7 @@ const Parser = struct {
     fn function(self: *Parser, fun_type: Compiler.FunctionType) void {
         var compiler = Compiler.init(self.alloc, fun_type, self.compiler, self.vm);
         self.compiler = &compiler;
-        self.compiler.function.name = Obj.copyString(self.alloc, self.previousLexeme(), self.vm).as.STRING;
+        self.compiler.function.name = Obj.String.copy(self.alloc, self.previousLexeme(), self.vm);
         self.beginScope();
 
         self.consume(.LEFT_PAREN, "Expect '(' after function name.");
@@ -359,7 +360,7 @@ const Parser = struct {
         self.block();
 
         const function_obj = compiler.endCompiler(self);
-        self.emitBytes(.{ .OPCODE = .CLOSURE }, .{ .RAW = self.makeConstant(.{ .OBJ = function_obj.obj }) });
+        self.emitBytes(.{ .OPCODE = .CLOSURE }, .{ .RAW = self.makeConstant(.{ .OBJ = &function_obj.obj }) });
 
         for (compiler.upvalues, 0..) |upvalue, i| {
             if (i >= function_obj.upvalue_count) {
@@ -501,7 +502,8 @@ const Parser = struct {
     }
 
     fn identifierConstant(self: *Parser, name: Token) u8 {
-        return self.makeConstant(.{ .OBJ = Obj.copyString(self.alloc, name.start[0..name.length], self.vm) });
+        const chars = name.start[0..name.length];
+        return self.makeConstant(self.stringValue(chars));
     }
 
     fn resolveLocal(self: *Parser, compiler: *Compiler, name: Token) ?u8 {
@@ -749,6 +751,11 @@ const Parser = struct {
             self.advance();
         }
     }
+
+    fn stringValue(self: *Parser, chars: []const u8) Value {
+        const str = Obj.String.copy(self.alloc, chars, self.vm);
+        return .{ .OBJ = &str.obj };
+    }
 };
 
 const Compiler = struct {
@@ -786,7 +793,7 @@ const Compiler = struct {
             .function = undefined,
             .fun_type = fun_type,
         };
-        compiler.function = Obj.createFunction(alloc, vm).as.FUNCTION;
+        compiler.function = Obj.Function.create(alloc, vm);
 
         const local = &compiler.locals[compiler.local_count];
         compiler.local_count += 1;
@@ -848,7 +855,7 @@ const Compiler = struct {
 
         if (comptime DEBUG_PRINT_CODE) {
             if (function.name) |name| {
-                @import("debug.zig").disassembleChunk(parser.currentChunk(), name.string());
+                @import("debug.zig").disassembleChunk(parser.currentChunk(), name.chars);
             } else {
                 @import("debug.zig").disassembleChunk(parser.currentChunk(), "<script>");
             }

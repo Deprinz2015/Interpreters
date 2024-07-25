@@ -76,33 +76,8 @@ pub fn deinit(self: *VM) void {
 fn deinitObjects(self: *VM) void {
     while (self.objects) |obj| {
         const next = obj.next;
-        self.freeObject(obj);
+        obj.destroy(self.alloc);
         self.objects = next;
-    }
-}
-
-fn freeObject(self: *VM, obj: *Obj) void {
-    defer self.alloc.destroy(obj);
-    // TODO: Collapse similar switch branches
-    switch (obj.as) {
-        .STRING => |str| {
-            self.alloc.free(str.string());
-            self.alloc.destroy(str);
-        },
-        .FUNCTION => |function| {
-            function.chunk.deinit();
-            self.alloc.destroy(function);
-        },
-        .NATIVE => |function| {
-            self.alloc.destroy(function);
-        },
-        .CLOSURE => |closure| {
-            self.alloc.free(closure.upvalues);
-            self.alloc.destroy(closure);
-        },
-        .UPVALUE => |upvalue| {
-            self.alloc.destroy(upvalue);
-        },
     }
 }
 
@@ -111,11 +86,11 @@ pub fn interpret(self: *VM, alloc: Allocator, source: []const u8) InterpreterRes
         return .COMPILE_ERROR;
     };
 
-    self.push(.{ .OBJ = function.obj });
-    const closure = Obj.createClosure(self.alloc, function, self);
+    self.push(.{ .OBJ = &function.obj });
+    const closure = Obj.Closure.create(self.alloc, function, self);
     _ = self.pop();
-    self.push(.{ .OBJ = closure });
-    self.call(closure.as.CLOSURE, 0) catch {
+    self.push(.{ .OBJ = &closure.obj });
+    self.call(closure, 0) catch {
         return .RUNTIME_ERROR;
     };
 
@@ -149,9 +124,9 @@ fn run(self: *VM) InterpreterResult {
                 _ = self.pop();
             },
             .CLOSURE => {
-                const function = self.readConstant().OBJ.as.FUNCTION;
-                const closure = Obj.createClosure(self.alloc, function, self).as.CLOSURE;
-                self.push(.{ .OBJ = closure.obj });
+                const function = self.readConstant().OBJ.as(.FUNCTION);
+                const closure = Obj.Closure.create(self.alloc, function, self);
+                self.push(.{ .OBJ = &closure.obj });
                 var idx: usize = 0;
                 while (idx < closure.upvalue_count) : (idx += 1) {
                     const is_local = self.readByte() == 1;
@@ -185,27 +160,27 @@ fn run(self: *VM) InterpreterResult {
                 frame.ip -= offset;
             },
             .DEFINE_GLOBAL => {
-                const name = self.readConstant().OBJ.as.STRING;
-                self.globals.put(name.string(), self.peek(0)) catch unreachable;
+                const name = self.readConstant().OBJ.as(.STRING);
+                self.globals.put(name.chars, self.peek(0)) catch unreachable;
                 _ = self.pop();
             },
             .GET_GLOBAL => get: {
-                const name = self.readConstant().OBJ.as.STRING;
-                const value = self.globals.get(name.string());
+                const name = self.readConstant().OBJ.as(.STRING);
+                const value = self.globals.get(name.chars);
                 if (value == null) {
-                    self.runtimeError("Undefined variable '{s}'.", .{name.string()});
+                    self.runtimeError("Undefined variable '{s}'.", .{name.chars});
                     break :get;
                 }
                 self.push(value.?);
             },
             .SET_GLOBAL => set: {
-                const name = self.readConstant().OBJ.as.STRING;
-                const value = self.globals.get(name.string());
+                const name = self.readConstant().OBJ.as(.STRING);
+                const value = self.globals.get(name.chars);
                 if (value == null) {
-                    self.runtimeError("Undefined variable '{s}'.", .{name.string()});
+                    self.runtimeError("Undefined variable '{s}'.", .{name.chars});
                     break :set;
                 }
-                self.globals.put(name.string(), self.peek(0)) catch unreachable;
+                self.globals.put(name.chars, self.peek(0)) catch unreachable;
             },
             .GET_LOCAL => {
                 const slot = self.readByte();
@@ -217,11 +192,11 @@ fn run(self: *VM) InterpreterResult {
             },
             .GET_UPVALUE => {
                 const slot = self.readByte();
-                self.push(frame.closure.upvalues[slot].location.*);
+                self.push(frame.closure.upvalues[slot].?.location.*);
             },
             .SET_UPVALUE => {
                 const slot = self.readByte();
-                frame.closure.upvalues[slot].location.* = self.peek(0);
+                frame.closure.upvalues[slot].?.location.* = self.peek(0);
             },
             .RETURN => {
                 const result = self.pop();
@@ -283,9 +258,11 @@ fn run(self: *VM) InterpreterResult {
     return .OK;
 }
 
-fn defineNative(self: *VM, name: []const u8, function: Obj.NativeFunction.NativeFn) void {
-    self.push(.{ .OBJ = Obj.copyString(self.alloc, name, self) });
-    self.push(.{ .OBJ = Obj.createNativeFunction(self.alloc, function, self) });
+fn defineNative(self: *VM, name: []const u8, function: Obj.Native.NativeFn) void {
+    const str = Obj.String.copy(self.alloc, name, self);
+    const native = Obj.Native.create(self.alloc, function, self);
+    self.push(.{ .OBJ = &str.obj });
+    self.push(.{ .OBJ = &native.obj });
     self.globals.put(name, self.stack[1]) catch unreachable;
     _ = self.pop();
     _ = self.pop();
@@ -323,7 +300,7 @@ fn captureUpvalue(self: *VM, local: *Value) *Obj.Upvalue {
         }
     }
 
-    const upvalue = Obj.createUpvalue(self.alloc, local, self).as.UPVALUE;
+    const upvalue = Obj.Upvalue.create(self.alloc, local, self);
     upvalue.next = current_upvalue;
 
     if (prev_upvalue) |prev| {
@@ -351,11 +328,12 @@ const RuntimeError = error{
 
 fn callValue(self: *VM, callee: Value, arg_count: usize) RuntimeError!void {
     if (callee == .OBJ) {
-        switch (callee.OBJ.as) {
-            .CLOSURE => |closure| {
-                return self.call(closure, arg_count);
+        switch (callee.OBJ.type) {
+            .CLOSURE => {
+                return self.call(callee.OBJ.as(.CLOSURE), arg_count);
             },
-            .NATIVE => |native| {
+            .NATIVE => {
+                const native = callee.OBJ.as(.NATIVE);
                 const result = native.function(self.stack[self.stack_top - arg_count .. self.stack_top], self);
                 if (self.had_error) {
                     return;
@@ -442,8 +420,8 @@ fn concat(self: *VM) void {
     const b = self.pop();
     const a = self.pop();
     const chars = std.fmt.allocPrint(self.alloc, "{}{}", .{ a, b }) catch unreachable;
-    const result = Obj.takeString(self.alloc, chars, self);
-    self.push(.{ .OBJ = result });
+    const result = Obj.String.take(self.alloc, chars, self);
+    self.push(.{ .OBJ = &result.obj });
 }
 
 fn isFalsey(value: Value) bool {
@@ -469,28 +447,33 @@ fn valuesEqual(a: Value, b: Value) bool {
         .NUMBER => a.NUMBER == b.NUMBER,
         .OBJ => |obj_a| {
             const obj_b = b.OBJ;
-            if (std.meta.activeTag(obj_a.as) != std.meta.activeTag(obj_b.as)) {
+            if (obj_a.type != obj_b.type) {
                 return false;
             }
-            switch (obj_a.as) {
-                .STRING => |str_a| {
-                    const str_b = obj_b.as.STRING;
+            switch (obj_a.type) {
+                .STRING => {
+                    const str_a = obj_a.as(.STRING);
+                    const str_b = obj_b.as(.STRING);
                     return str_a == str_b;
                 },
-                .FUNCTION => |fun_a| {
-                    const fun_b = obj_b.as.FUNCTION;
+                .FUNCTION => {
+                    const fun_a = obj_a.as(.FUNCTION);
+                    const fun_b = obj_b.as(.FUNCTION);
                     return fun_a.name == fun_b.name;
                 },
-                .NATIVE => |fun_a| {
-                    const fun_b = obj_b.as.NATIVE;
+                .NATIVE => {
+                    const fun_a = obj_a.as(.NATIVE);
+                    const fun_b = obj_b.as(.NATIVE);
                     return fun_a == fun_b;
                 },
-                .CLOSURE => |clos_a| {
-                    const clos_b = obj_b.as.CLOSURE;
+                .CLOSURE => {
+                    const clos_a = obj_a.as(.CLOSURE);
+                    const clos_b = obj_b.as(.CLOSURE);
                     return clos_a == clos_b;
                 },
-                .UPVALUE => |up_a| {
-                    const up_b = obj_b.as.UPVALUE;
+                .UPVALUE => {
+                    const up_a = obj_a.as(.UPVALUE);
+                    const up_b = obj_b.as(.UPVALUE);
                     return valuesEqual(up_a.location.*, up_b.location.*);
                 },
             }
@@ -509,7 +492,7 @@ fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) void {
         const function = frame.closure.function;
         StdErr.writer().print("[line {d}] in ", .{function.chunk.lines[frame.ip - 1]}) catch {};
         if (function.name) |name| {
-            StdErr.writer().print("{s}()\n", .{name.string()}) catch {};
+            StdErr.writer().print("{s}()\n", .{name.chars}) catch {};
         } else {
             StdErr.writeAll("script\n") catch {};
         }
@@ -567,7 +550,8 @@ const NativeFunctions = struct {
         const input = StdIn.reader().readUntilDelimiterAlloc(alloc, '\n', 1024) catch unreachable;
         defer alloc.free(input);
         const floatVal = std.fmt.parseFloat(f64, input) catch {
-            return .{ .OBJ = Obj.copyString(alloc, input, vm) };
+            const string = Obj.String.copy(alloc, input, vm);
+            return .{ .OBJ = &string.obj };
         };
         return .{ .NUMBER = floatVal };
     }

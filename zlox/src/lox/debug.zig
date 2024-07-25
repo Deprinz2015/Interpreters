@@ -85,7 +85,7 @@ fn closureInstruction(chunk: *Chunk, offset: usize) usize {
     new_offset += 1;
     std.debug.print("{s: <16} {d: <4} {}\n", .{ "OP_CLOSURE", constant, chunk.constantAt(constant) });
 
-    const function = chunk.constantAt(constant).OBJ.as.FUNCTION;
+    const function = chunk.constantAt(constant).OBJ.as(.FUNCTION);
     var i: usize = 0;
     while (i < function.upvalue_count) : (i += 1) {
         const is_local = chunk.byteAt(new_offset) == 1;
