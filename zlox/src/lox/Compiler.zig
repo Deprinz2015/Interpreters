@@ -684,7 +684,7 @@ const Parser = struct {
     }
 
     fn makeConstant(self: *Parser, value: Value) u8 {
-        const constant = self.currentChunk().addConstant(value);
+        const constant = self.currentChunk().addConstant(value, self.vm);
         if (constant > std.math.maxInt(u8)) {
             self.emitError("Too many constants in one chunk.");
             return 0;
@@ -852,13 +852,14 @@ pub const Compiler = struct {
     }
 
     fn endCompiler(self: *Compiler, parser: *Parser) *Obj.Function {
-        parser.emitReturn();
         const function = self.function;
+        parser.emitReturn();
 
         if (comptime DEBUG_PRINT_CODE) {
             if (function.name) |name| {
                 @import("debug.zig").disassembleChunk(parser.currentChunk(), name.chars);
             } else {
+                std.debug.print("endcompiler\n", .{});
                 @import("debug.zig").disassembleChunk(parser.currentChunk(), "<script>");
             }
         }

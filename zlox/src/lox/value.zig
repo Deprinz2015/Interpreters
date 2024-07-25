@@ -92,7 +92,9 @@ pub const Obj = struct {
             const obj = Obj.allocObj(alloc, .STRING, vm);
             const string = obj.as(.STRING);
             string.chars = chars;
+            vm.push(.{ .OBJ = &string.obj });
             vm.strings.put(chars, string) catch unreachable;
+            _ = vm.pop();
             return string;
         }
 

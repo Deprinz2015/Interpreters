@@ -75,8 +75,8 @@ pub fn deinit(self: *VM) void {
     self.deinitObjects();
     self.strings.deinit();
     self.globals.deinit();
-    self.alloc.free(self.stack);
-    self.alloc.free(self.frames);
+    self.gc.child_alloc.free(self.stack);
+    self.gc.child_alloc.free(self.frames);
 }
 
 fn deinitObjects(self: *VM) void {
@@ -87,8 +87,8 @@ fn deinitObjects(self: *VM) void {
     }
 }
 
-pub fn interpret(self: *VM, alloc: Allocator, source: []const u8) InterpreterResult {
-    const function = Compiler.compile(alloc, self, source) catch {
+pub fn interpret(self: *VM, source: []const u8) InterpreterResult {
+    const function = Compiler.compile(self.alloc, self, source) catch {
         return .COMPILE_ERROR;
     };
 
@@ -278,12 +278,12 @@ fn resetStack(self: *VM) void {
     self.stack_top = 0;
 }
 
-fn push(self: *VM, value: Value) void {
+pub fn push(self: *VM, value: Value) void {
     self.stack[self.stack_top] = value;
     self.stack_top += 1;
 }
 
-fn pop(self: *VM) Value {
+pub fn pop(self: *VM) Value {
     self.stack_top -= 1;
     return self.stack[self.stack_top];
 }

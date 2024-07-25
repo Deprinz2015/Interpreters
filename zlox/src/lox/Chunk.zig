@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ValueArray = @import("value.zig").ValueArray;
 const Value = @import("value.zig").Value;
+const VM = @import("VM.zig");
 
 const Chunk = @This();
 
@@ -80,8 +81,10 @@ pub fn write(self: *Chunk, comptime raw: bool, byte: (if (raw) u8 else OpCode), 
     }
 }
 
-pub fn addConstant(self: *Chunk, value: Value) usize {
+pub fn addConstant(self: *Chunk, value: Value, vm: *VM) usize {
+    vm.push(value);
     self.constants.write(value);
+    _ = vm.pop();
     return self.constants.count - 1;
 }
 

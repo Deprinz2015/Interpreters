@@ -14,14 +14,14 @@ fun outer() {
 outer();
 
 print("Complex Closures");
-fun outer() {
+fun otherOuter() {
   var x = "outside";
-  fun inner() {
+  fun otherInner() {
     print(x);
   }
 
-  return inner;
+  return otherInner;
 }
 
-var closure = outer();
+var closure = otherOuter();
 closure();

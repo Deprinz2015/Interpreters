@@ -19,8 +19,9 @@ compiler: ?*Compiler,
 gray_stack: []*Obj,
 gray_count: usize,
 gray_size: usize,
-bytes_allocated: i64,
-next_gc: i64,
+bytes_allocated: i64 = 0,
+next_gc: i64 = 1024 * 2,
+is_collecting: bool = false,
 
 /// Manually set .vm before first usage
 pub fn init(child_alloc: Allocator) GC {
@@ -31,8 +32,6 @@ pub fn init(child_alloc: Allocator) GC {
         .gray_count = 0,
         .gray_size = 0,
         .gray_stack = &.{},
-        .bytes_allocated = 0,
-        .next_gc = 1024 * 1024,
     };
 }
 
@@ -202,9 +201,13 @@ fn removeWhiteStrings(self: *GC) void {
 }
 
 fn collectGarbage(self: *GC) void {
+    if (self.is_collecting) {
+        return;
+    }
+    self.is_collecting = true;
+    const before = self.bytes_allocated;
     if (comptime DEBUG_LOG_GC) {
         std.debug.print("-- gc begin\n", .{});
-        // TODO: Add before value
     }
 
     self.markRoots();
@@ -216,8 +219,10 @@ fn collectGarbage(self: *GC) void {
 
     if (comptime DEBUG_LOG_GC) {
         std.debug.print("-- gc end\n", .{});
-        // TODO: Add after value and debug output
+        const after = self.bytes_allocated;
+        std.debug.print("   collected {} bytes (from {} to {}) next at {}\n", .{ before - after, before, after, self.next_gc });
     }
+    self.is_collecting = false;
 }
 
 fn alloc(ctx: *anyopaque, n: usize, log2_ptr_align: u8, ra: usize) ?[*]u8 {
@@ -245,6 +250,12 @@ fn free(ctx: *anyopaque, buf: []u8, log2_buf_align: u8, ret_addr: usize) void {
 
 fn updateGc(self: *GC, delta: i64) void {
     self.bytes_allocated += delta;
+
+    if (comptime DEBUG_STRESS_GC) {
+        self.collectGarbage();
+        return;
+    }
+
     if (self.bytes_allocated > self.next_gc) {
         self.collectGarbage();
     }
