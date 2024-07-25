@@ -13,6 +13,7 @@ const Value = @import("value.zig").Value;
 const Obj = @import("value.zig").Obj;
 const Compiler = @import("Compiler.zig");
 const debug = @import("debug.zig");
+const GC = @import("GC.zig");
 
 const VM = @This();
 
@@ -46,17 +47,22 @@ stack: []Value,
 stack_top: usize,
 open_upvalues: ?*Obj.Upvalue,
 alloc: Allocator,
+gc: *GC,
 
-pub fn init(alloc: Allocator) VM {
+pub fn init(alloc: Allocator, gc: *GC) VM {
     var vm: VM = .{
         .stack = alloc.alloc(Value, STACK_MAX) catch unreachable,
         .frames = alloc.alloc(CallFrame, FRAMES_MAX) catch unreachable,
         .stack_top = 0,
-        .alloc = alloc,
+        .alloc = undefined,
         .strings = std.StringHashMap(*Obj.String).init(alloc),
         .globals = std.StringHashMap(Value).init(alloc),
         .open_upvalues = null,
+        .gc = gc,
     };
+
+    vm.gc.vm = &vm;
+    vm.alloc = vm.gc.allocator();
 
     vm.defineNative("clock", &NativeFunctions.clock);
     vm.defineNative("print", &NativeFunctions.print);

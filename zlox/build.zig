@@ -41,6 +41,8 @@ pub fn build(b: *std.Build) void {
     // some defaults for check
     options.stack_trace = true;
     options.chunk_trace = true;
+    options.stress_gc = true;
+    options.log_gc = true;
 
     const exe_check = makeStep(b, options);
     const check = b.step("check", "Check if compiles");

@@ -7,6 +7,7 @@ const Allocator = std.mem.Allocator;
 const StdOut = std.io.getStdOut();
 const StdErr = std.io.getStdErr();
 
+const GC = @import("GC.zig");
 const Scanner = @import("Scanner.zig");
 const Chunk = @import("Chunk.zig");
 const VM = @import("VM.zig");
@@ -338,6 +339,7 @@ const Parser = struct {
     fn function(self: *Parser, fun_type: Compiler.FunctionType) void {
         var compiler = Compiler.init(self.alloc, fun_type, self.compiler, self.vm);
         self.compiler = &compiler;
+        self.vm.gc.compiler = &compiler;
         self.compiler.function.name = Obj.String.copy(self.alloc, self.previousLexeme(), self.vm);
         self.beginScope();
 
@@ -758,7 +760,7 @@ const Parser = struct {
     }
 };
 
-const Compiler = struct {
+pub const Compiler = struct {
     enclosing: ?*Compiler,
     function: *Obj.Function,
     fun_type: FunctionType,
@@ -863,13 +865,23 @@ const Compiler = struct {
 
         if (self.enclosing) |enclosing| {
             parser.compiler = enclosing;
+            parser.vm.gc.compiler = enclosing;
         }
         return function;
+    }
+
+    pub fn markCompilerRoots(self: *Compiler, gc: *GC) void {
+        var current: ?*Compiler = self;
+        while (current) |compiler| {
+            gc.markObject(&compiler.function.obj);
+            current = compiler.enclosing;
+        }
     }
 };
 
 pub fn compile(alloc: Allocator, vm: *VM, source: []const u8) Error!*Obj.Function {
     var compiler = Compiler.init(alloc, .SCRIPT, null, vm);
+    vm.gc.compiler = &compiler;
     const scanner = Scanner.init(source);
     var parser: Parser = .{
         .current = undefined,

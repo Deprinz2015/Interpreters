@@ -16,12 +16,13 @@ var vm: VM = undefined;
 pub fn main() !u8 {
     var gpa = GPA(.{}){};
     defer std.debug.assert(gpa.deinit() == .ok);
+    const alloc = gpa.allocator();
 
-    var gc = GC.init(gpa.allocator());
+    var gc = GC.init(alloc);
     defer gc.deinit();
-    const alloc = gc.allocator();
 
-    vm = VM.init(alloc);
+    vm = VM.init(alloc, &gc);
+    gc.vm = &vm;
     defer vm.deinit();
 
     const args = try std.process.argsAlloc(alloc);

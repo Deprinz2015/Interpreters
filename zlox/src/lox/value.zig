@@ -6,16 +6,36 @@ const DEBUG_LOG_GC = @import("config").log_gc;
 const VM = @import("VM.zig");
 const Chunk = @import("Chunk.zig");
 
-// TODO: Try with @fieldParentPointer
 pub const Obj = struct {
     type: Type,
     next: ?*Obj,
+    is_marked: bool,
 
     pub fn as(self: *Obj, comptime T: Type) *T.getType() {
         return @fieldParentPtr("obj", self);
     }
 
+    fn allocObj(alloc: Allocator, comptime T: Type, vm: *VM) *Obj {
+        const ptr = alloc.create(T.getType()) catch unreachable;
+        ptr.obj = .{
+            .type = T,
+            .next = vm.objects,
+            .is_marked = false,
+        };
+
+        vm.objects = &ptr.obj;
+
+        if (comptime DEBUG_LOG_GC) {
+            std.debug.print("{*} allocate {} for {s}\n", .{ ptr, @sizeOf(@TypeOf(ptr.*)), @tagName(T) });
+        }
+
+        return &ptr.obj;
+    }
+
     pub fn destroy(self: *Obj, alloc: Allocator) void {
+        if (comptime DEBUG_LOG_GC) {
+            std.debug.print("{*} free type {s}\n", .{ self, @tagName(self.type) });
+        }
         switch (self.type) {
             .STRING => self.as(.STRING).destroy(alloc),
             .FUNCTION => self.as(.FUNCTION).destroy(alloc),
@@ -72,6 +92,7 @@ pub const Obj = struct {
             const obj = Obj.allocObj(alloc, .STRING, vm);
             const string = obj.as(.STRING);
             string.chars = chars;
+            vm.strings.put(chars, string) catch unreachable;
             return string;
         }
 
@@ -167,18 +188,6 @@ pub const Obj = struct {
             alloc.destroy(self);
         }
     };
-
-    fn allocObj(alloc: Allocator, comptime T: Type, vm: *VM) *Obj {
-        const ptr = alloc.create(T.getType()) catch unreachable;
-        ptr.obj = .{
-            .type = T,
-            .next = vm.objects,
-        };
-
-        vm.objects = &ptr.obj;
-
-        return &ptr.obj;
-    }
 };
 
 pub const Value = union(enum) {
