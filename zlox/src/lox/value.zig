@@ -1,10 +1,11 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const DEBUG_LOG_GC = @import("config").log_gc;
+
 const VM = @import("VM.zig");
 const Chunk = @import("Chunk.zig");
 
-// PERF: Try out data oriented design to optimize and measure
 // TODO: Try with @fieldParentPointer
 pub const Obj = struct {
     as: Type,
@@ -79,52 +80,47 @@ pub const Obj = struct {
     }
 
     pub fn createUpvalue(alloc: Allocator, slot: *Value, vm: *VM) *Obj {
-        const upvalue = alloc.create(Upvalue) catch unreachable;
+        const obj = allocObject(Upvalue, alloc, .UPVALUE, vm);
+        const upvalue = obj.as.UPVALUE;
         upvalue.location = slot;
         upvalue.next = null;
         upvalue.closed = .NIL;
-        const obj = createObj(alloc, .{ .UPVALUE = upvalue }, vm);
-        upvalue.obj = obj;
         return obj;
     }
 
     pub fn createClosure(alloc: Allocator, function: *Function, vm: *VM) *Obj {
         const upvalues = alloc.alloc(*Upvalue, function.upvalue_count) catch unreachable;
-        const closure = alloc.create(Closure) catch unreachable;
+        const obj = allocObject(Closure, alloc, .CLOSURE, vm);
+        const closure = obj.as.CLOSURE;
         closure.function = function;
         closure.upvalue_count = function.upvalue_count;
         closure.upvalues = upvalues;
-        const obj = createObj(alloc, .{ .CLOSURE = closure }, vm);
-        closure.obj = obj;
         return obj;
     }
 
     pub fn createNativeFunction(alloc: Allocator, native_fn: NativeFunction.NativeFn, vm: *VM) *Obj {
-        const function = alloc.create(NativeFunction) catch unreachable;
+        const obj = allocObject(NativeFunction, alloc, .NATIVE, vm);
+        const function = obj.as.NATIVE;
         function.function = native_fn;
-        const obj = createObj(alloc, .{ .NATIVE = function }, vm);
-        function.obj = obj;
         return obj;
     }
 
     pub fn createFunction(alloc: Allocator, vm: *VM) *Obj {
-        const function = alloc.create(Function) catch unreachable;
+        const obj = allocObject(Function, alloc, .FUNCTION, vm);
+        const function = obj.as.FUNCTION;
         function.arity = 0;
         function.upvalue_count = 0;
         function.name = null;
         function.chunk = Chunk.init(alloc);
-        const obj = createObj(alloc, .{ .FUNCTION = function }, vm);
-        function.obj = obj;
         return obj;
     }
 
-    fn createString(alloc: Allocator, string: [*]const u8, length: usize, vm: *VM) *Obj {
-        const obj_string = alloc.create(String) catch unreachable;
-        obj_string.chars = string;
-        obj_string.length = length;
-        const obj = createObj(alloc, .{ .STRING = obj_string }, vm);
-        obj_string.obj = obj;
-        vm.strings.put(obj_string.string(), obj_string) catch unreachable;
+    fn createString(alloc: Allocator, chars: [*]const u8, length: usize, vm: *VM) *Obj {
+        const obj = allocObject(String, alloc, .STRING, vm);
+        const string = obj.as.STRING;
+        string.chars = chars;
+        string.length = length;
+        vm.strings.put(string.string(), string) catch unreachable;
         return obj;
     }
 
@@ -140,6 +136,13 @@ pub const Obj = struct {
             vm.objects = obj;
         }
 
+        return obj;
+    }
+
+    inline fn allocObject(comptime T: type, alloc: Allocator, obj_type: std.meta.Tag(Type), vm: *VM) *Obj {
+        const concrete = alloc.create(T) catch unreachable;
+        const obj = createObj(alloc, @unionInit(Type, @tagName(obj_type), concrete), vm);
+        concrete.obj = obj;
         return obj;
     }
 };

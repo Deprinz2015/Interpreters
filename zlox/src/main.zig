@@ -6,6 +6,7 @@ const GPA = std.heap.GeneralPurposeAllocator;
 
 const Chunk = @import("lox/Chunk.zig");
 const VM = @import("lox/VM.zig");
+const GC = @import("lox/GC.zig");
 const debug = @import("lox/debug.zig");
 
 const MAX_FILE_SIZE = 10 * 1024; // 10kb
@@ -15,7 +16,10 @@ var vm: VM = undefined;
 pub fn main() !u8 {
     var gpa = GPA(.{}){};
     defer std.debug.assert(gpa.deinit() == .ok);
-    const alloc = gpa.allocator();
+
+    var gc = GC.init(gpa.allocator());
+    defer gc.deinit();
+    const alloc = gc.allocator();
 
     vm = VM.init(alloc);
     defer vm.deinit();
