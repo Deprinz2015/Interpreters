@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 
 const DEBUG_STRESS_GC = @import("config").stress_gc;
 const DEBUG_LOG_GC = @import("config").log_gc;
+const HEAP_GROWTH_FACTOR = 2;
 
 const VM = @import("VM.zig");
 const Compiler = @import("Compiler.zig").Compiler;
@@ -18,6 +19,8 @@ compiler: ?*Compiler,
 gray_stack: []*Obj,
 gray_count: usize,
 gray_size: usize,
+bytes_allocated: i64,
+next_gc: i64,
 
 /// Manually set .vm before first usage
 pub fn init(child_alloc: Allocator) GC {
@@ -28,6 +31,8 @@ pub fn init(child_alloc: Allocator) GC {
         .gray_count = 0,
         .gray_size = 0,
         .gray_stack = &.{},
+        .bytes_allocated = 0,
+        .next_gc = 1024 * 1024,
     };
 }
 
@@ -199,6 +204,7 @@ fn removeWhiteStrings(self: *GC) void {
 fn collectGarbage(self: *GC) void {
     if (comptime DEBUG_LOG_GC) {
         std.debug.print("-- gc begin\n", .{});
+        // TODO: Add before value
     }
 
     self.markRoots();
@@ -206,32 +212,40 @@ fn collectGarbage(self: *GC) void {
     self.removeWhiteStrings();
     self.sweep();
 
+    self.next_gc = self.bytes_allocated * HEAP_GROWTH_FACTOR;
+
     if (comptime DEBUG_LOG_GC) {
         std.debug.print("-- gc end\n", .{});
+        // TODO: Add after value and debug output
     }
 }
 
 fn alloc(ctx: *anyopaque, n: usize, log2_ptr_align: u8, ra: usize) ?[*]u8 {
     const self: *GC = @ptrCast(@alignCast(ctx));
-    if (comptime DEBUG_STRESS_GC) {
-        self.collectGarbage();
-    }
-    return self.child_alloc.rawAlloc(n, log2_ptr_align, ra);
+    const result = self.child_alloc.rawAlloc(n, log2_ptr_align, ra);
+    self.updateGc(@intCast(n));
+    return result;
 }
 
 fn resize(ctx: *anyopaque, buf: []u8, log2_buf_align: u8, new_len: usize, ret_addr: usize) bool {
     const self: *GC = @ptrCast(@alignCast(ctx));
-
-    if (comptime DEBUG_STRESS_GC) {
-        if (new_len > buf.len) {
-            self.collectGarbage();
-        }
-    }
-
-    return self.child_alloc.rawResize(buf, log2_buf_align, new_len, ret_addr);
+    const result = self.child_alloc.rawResize(buf, log2_buf_align, new_len, ret_addr);
+    const len_i: i64 = @intCast(buf.len);
+    const new_len_i: i64 = @intCast(new_len);
+    self.updateGc(new_len_i - len_i);
+    return result;
 }
 
 fn free(ctx: *anyopaque, buf: []u8, log2_buf_align: u8, ret_addr: usize) void {
     const self: *GC = @ptrCast(@alignCast(ctx));
     self.child_alloc.rawFree(buf, log2_buf_align, ret_addr);
+    const len: i64 = @intCast(buf.len);
+    self.updateGc(-len);
+}
+
+fn updateGc(self: *GC, delta: i64) void {
+    self.bytes_allocated += delta;
+    if (self.bytes_allocated > self.next_gc) {
+        self.collectGarbage();
+    }
 }
