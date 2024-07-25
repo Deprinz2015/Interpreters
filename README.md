@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [26](https://craftinginterpreters.com/garbage-collection.html)
+Currently at Chapter [26.6](https://craftinginterpreters.com/garbage-collection.html#when-to-collect)
 
 This Project will contain at least 2 implementations:
 
