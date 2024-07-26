@@ -125,6 +125,11 @@ fn run(self: *VM) InterpreterResult {
         const instruction: OpCode = @enumFromInt(byte);
         switch (instruction) {
             .POP => _ = self.pop(),
+            .CLASS => {
+                const name = self.readConstant().OBJ.as(.STRING);
+                const class = Obj.Class.create(self.alloc, name, self);
+                self.push(.{ .OBJ = &class.obj });
+            },
             .CLOSE_UPVALUE => {
                 self.closeUpvalues(&self.stack[self.stack_top - 1]);
                 _ = self.pop();
@@ -483,6 +488,11 @@ fn valuesEqual(a: Value, b: Value) bool {
                     const up_a = obj_a.as(.UPVALUE);
                     const up_b = obj_b.as(.UPVALUE);
                     return valuesEqual(up_a.location.*, up_b.location.*);
+                },
+                .CLASS => {
+                    const class_a = obj_a.as(.CLASS);
+                    const class_b = obj_b.as(.CLASS);
+                    return class_a == class_b;
                 },
             }
         },

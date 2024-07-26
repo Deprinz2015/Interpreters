@@ -150,7 +150,9 @@ const Parser = struct {
     }
 
     fn declaration(self: *Parser) void {
-        if (self.match(.FUN)) {
+        if (self.match(.CLASS)) {
+            self.classDeclaration();
+        } else if (self.match(.FUN)) {
             self.funDeclaration();
         } else if (self.match(.VAR)) {
             self.varDeclaration();
@@ -161,6 +163,18 @@ const Parser = struct {
         if (self.panic_mode) {
             self.synchronize();
         }
+    }
+
+    fn classDeclaration(self: *Parser) void {
+        self.consume(.IDENTIFIER, "Expect class name.");
+        const name_constant = self.identifierConstant(self.previous);
+        self.declareVariable();
+
+        self.emitBytes(.{ .OPCODE = .CLASS }, .{ .RAW = name_constant });
+        self.defineVariable(name_constant);
+
+        self.consume(.LEFT_BRACE, "Expect '{' before class body.");
+        self.consume(.RIGHT_BRACE, "Expect '}' after class body.");
     }
 
     fn funDeclaration(self: *Parser) void {
