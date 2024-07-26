@@ -423,10 +423,12 @@ fn binaryOp(self: *VM, op: OpCode) void {
 }
 
 fn concat(self: *VM) void {
-    const b = self.pop();
-    const a = self.pop();
+    const b = self.peek(0);
+    const a = self.peek(1);
     const chars = std.fmt.allocPrint(self.alloc, "{}{}", .{ a, b }) catch unreachable;
     const result = Obj.String.take(self.alloc, chars, self);
+    _ = self.pop();
+    _ = self.pop();
     self.push(.{ .OBJ = &result.obj });
 }
 

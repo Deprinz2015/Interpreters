@@ -179,7 +179,7 @@ fn sweep(self: *GC) void {
             self.vm.objects = maybe_object;
         }
 
-        unreached.destroy(self.child_alloc);
+        unreached.destroy(self.allocator());
     }
 }
 
@@ -245,7 +245,7 @@ fn free(ctx: *anyopaque, buf: []u8, log2_buf_align: u8, ret_addr: usize) void {
     const self: *GC = @ptrCast(@alignCast(ctx));
     self.child_alloc.rawFree(buf, log2_buf_align, ret_addr);
     const len: i64 = @intCast(buf.len);
-    self.updateGc(-len);
+    self.bytes_allocated -= len;
 }
 
 fn updateGc(self: *GC, delta: i64) void {
