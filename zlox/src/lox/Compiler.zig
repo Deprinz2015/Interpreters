@@ -65,7 +65,7 @@ const Parser = struct {
         .{ @tagName(TokenType.LEFT_BRACE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.RIGHT_BRACE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.COMMA), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.DOT), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.DOT), .{ .prefix = null, .infix = dot, .precedence = .CALL } },
         .{ @tagName(TokenType.MINUS), .{ .prefix = unary, .infix = binary, .precedence = .TERM } },
         .{ @tagName(TokenType.PLUS), .{ .prefix = null, .infix = binary, .precedence = .TERM } },
         .{ @tagName(TokenType.SEMICOLON), .{ .prefix = null, .infix = null, .precedence = .NONE } },
@@ -465,7 +465,7 @@ const Parser = struct {
             self.advance();
             const infix_rule = getRule(self.previous.token_type).infix;
             if (infix_rule) |infix| {
-                infix(self, .{});
+                infix(self, .{ .can_assign = can_assign });
             }
         }
 
@@ -606,6 +606,18 @@ const Parser = struct {
     fn call(self: *Parser, _: ParseArguments) void {
         const arg_count = self.argumentList();
         self.emitBytes(.{ .OPCODE = .CALL }, .{ .RAW = arg_count });
+    }
+
+    fn dot(self: *Parser, params: ParseArguments) void {
+        self.consume(.IDENTIFIER, "Expect property name after '.'.");
+        const name = self.identifierConstant(self.previous);
+
+        if (params.can_assign and self.match(.EQUAL)) {
+            self.expression();
+            self.emitBytes(.{ .OPCODE = .SET_PROPERTY }, .{ .RAW = name });
+        } else {
+            self.emitBytes(.{ .OPCODE = .GET_PROPERTY }, .{ .RAW = name });
+        }
     }
 
     fn argumentList(self: *Parser) u8 {
@@ -873,7 +885,6 @@ pub const Compiler = struct {
             if (function.name) |name| {
                 @import("debug.zig").disassembleChunk(parser.currentChunk(), name.chars);
             } else {
-                std.debug.print("endcompiler\n", .{});
                 @import("debug.zig").disassembleChunk(parser.currentChunk(), "<script>");
             }
         }

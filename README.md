@@ -2,7 +2,7 @@
 
 This project follows this book: [CraftingInterpreters](https://craftinginterpreters.com/index.html)
 
-Currently at Chapter [27.3](https://craftinginterpreters.com/classes-and-instances.html#instances-of-classes)
+Currently at Chapter [28](https://craftinginterpreters.com/methods-and-initializers.html)
 
 This Project will contain at least 2 implementations:
 

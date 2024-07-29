@@ -17,6 +17,8 @@ pub const OpCode = enum(u8) {
     POP,
     CLOSE_UPVALUE,
     DEFINE_GLOBAL,
+    GET_PROPERTY,
+    SET_PROPERTY,
     GET_GLOBAL,
     SET_GLOBAL,
     GET_LOCAL,

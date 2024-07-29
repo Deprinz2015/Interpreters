@@ -43,6 +43,7 @@ pub const Obj = struct {
             .CLOSURE => self.as(.CLOSURE).destroy(alloc),
             .UPVALUE => self.as(.UPVALUE).destroy(alloc),
             .CLASS => self.as(.CLASS).destroy(alloc),
+            .INSTANCE => self.as(.INSTANCE).destroy(alloc),
         }
     }
 
@@ -53,6 +54,7 @@ pub const Obj = struct {
         CLOSURE,
         UPVALUE,
         CLASS,
+        INSTANCE,
 
         inline fn getType(self: *const Type) type {
             return switch (self.*) {
@@ -62,6 +64,7 @@ pub const Obj = struct {
                 .CLOSURE => Closure,
                 .UPVALUE => Upvalue,
                 .CLASS => Class,
+                .INSTANCE => Instance,
             };
         }
     };
@@ -209,6 +212,25 @@ pub const Obj = struct {
             alloc.destroy(self);
         }
     };
+
+    pub const Instance = struct {
+        obj: Obj,
+        klass: *Class,
+        fields: std.StringHashMap(Value),
+
+        pub fn create(alloc: Allocator, klass: *Class, vm: *VM) *Instance {
+            const obj = Obj.allocObj(alloc, .INSTANCE, vm);
+            const instance = obj.as(.INSTANCE);
+            instance.klass = klass;
+            instance.fields = std.StringHashMap(Value).init(alloc);
+            return instance;
+        }
+
+        pub fn destroy(self: *Instance, alloc: Allocator) void {
+            self.fields.deinit();
+            alloc.destroy(self);
+        }
+    };
 };
 
 pub const Value = union(enum) {
@@ -242,6 +264,7 @@ pub const Value = union(enum) {
                 .FUNCTION => try Printer.printFunction(obj.as(.FUNCTION), writer),
                 .CLOSURE => try Printer.printFunction(obj.as(.CLOSURE).function, writer),
                 .CLASS => try writer.print("{s}", .{obj.as(.CLASS).name.chars}),
+                .INSTANCE => try writer.print("{s} instance", .{obj.as(.INSTANCE).klass.name.chars}),
             },
         }
     }

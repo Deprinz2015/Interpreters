@@ -30,6 +30,8 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .LOOP => jumpInstruction("OP_LOOP", -1, chunk, offset),
         .CLASS => constantInstruction("OP_CLASS", chunk, offset),
         .DEFINE_GLOBAL => constantInstruction("OP_DEFINE_GLOBAL", chunk, offset),
+        .GET_PROPERTY => constantInstruction("OP_GET_PROPERTY", chunk, offset),
+        .SET_PROPERTY => constantInstruction("OP_SET_PROPERTY", chunk, offset),
         .GET_GLOBAL => constantInstruction("OP_GET_GLOBAL", chunk, offset),
         .SET_GLOBAL => constantInstruction("OP_SET_GLOBAL", chunk, offset),
         .GET_LOCAL => byteInstruction("OP_GET_LOCAL", chunk, offset),
