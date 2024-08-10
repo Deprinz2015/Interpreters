@@ -204,6 +204,22 @@ fn run(self: *VM) InterpreterResult {
                 const slot = self.readByte();
                 frame.closure.upvalues[slot].?.location.* = self.peek(0);
             },
+            .ARRAY => {
+                const value_count = self.readByte();
+                var idx = value_count;
+                const arr = Obj.Array.create(self.alloc, self);
+                self.push(.{ .OBJ = &arr.obj });
+                while (idx > 0) : (idx -= 1) {
+                    const key = std.fmt.allocPrint(self.alloc, "{d}", .{arr.values.count()}) catch unreachable;
+                    const value = self.peek(idx);
+                    arr.values.put(key, value) catch unreachable;
+                }
+                for (0..value_count) |_| {
+                    _ = self.pop();
+                }
+                _ = self.pop();
+                self.push(.{ .OBJ = &arr.obj });
+            },
             .RETURN => {
                 const result = self.pop();
                 self.closeUpvalues(&frame.slots[0]);
@@ -483,6 +499,27 @@ fn valuesEqual(a: Value, b: Value) bool {
                     const up_a = obj_a.as(.UPVALUE);
                     const up_b = obj_b.as(.UPVALUE);
                     return valuesEqual(up_a.location.*, up_b.location.*);
+                },
+                .ARRAY => {
+                    const arr_a = obj_a.as(.ARRAY);
+                    const arr_b = obj_b.as(.ARRAY);
+                    if (arr_a.values.count() != arr_b.values.count()) {
+                        return false;
+                    }
+
+                    // Compare every value of array
+                    var values_a = arr_a.values.iterator();
+                    while (values_a.next()) |val_a| {
+                        const key = val_a.key_ptr.*;
+                        if (arr_b.values.get(key) == null) {
+                            return false;
+                        }
+
+                        if (!valuesEqual(val_a.value_ptr.*, arr_b.values.get(key).?)) {
+                            return false;
+                        }
+                    }
+                    return true;
                 },
             }
         },

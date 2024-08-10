@@ -149,6 +149,10 @@ fn blackenObject(self: *GC, obj: *Obj) void {
                 }
             }
         },
+        .ARRAY => {
+            const arr = obj.as(.ARRAY);
+            self.markTable(&arr.values);
+        },
     }
 }
 

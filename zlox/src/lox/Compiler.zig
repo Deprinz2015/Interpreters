@@ -45,7 +45,7 @@ const Parser = struct {
         TERM, // + -
         FACTOR, // * /
         UNARY, // ! -
-        CALL, // . ()
+        CALL, // () []
         PRIMARY,
     };
 
@@ -64,6 +64,8 @@ const Parser = struct {
         .{ @tagName(TokenType.RIGHT_PAREN), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.LEFT_BRACE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.RIGHT_BRACE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.LEFT_BRACKET), .{ .prefix = array, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.RIGHT_BRACKET), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.COMMA), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.DOT), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.MINUS), .{ .prefix = unary, .infix = binary, .precedence = .TERM } },
@@ -612,6 +614,21 @@ const Parser = struct {
             return 255;
         }
         return @intCast(arg_count);
+    }
+
+    fn array(self: *Parser, _: ParseArguments) void {
+        var value_count: usize = 0;
+        if (!self.check(.RIGHT_BRACKET)) {
+            self.expression();
+            value_count += 1;
+            while (self.match(.COMMA)) {
+                self.expression();
+                value_count += 1;
+            }
+        }
+        self.consume(.RIGHT_BRACKET, "Expect ']' after array values.");
+        value_count = @min(value_count, 255);
+        self.emitBytes(.{ .OPCODE = .ARRAY }, .{ .RAW = @intCast(value_count) });
     }
 
     fn grouping(self: *Parser, _: ParseArguments) void {

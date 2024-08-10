@@ -1,0 +1,5 @@
+var one = 1;
+var two = 2;
+var array = ["test", "test1", one, two, 3];
+
+print(array);
