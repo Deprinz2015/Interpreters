@@ -64,7 +64,7 @@ const Parser = struct {
         .{ @tagName(TokenType.RIGHT_PAREN), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.LEFT_BRACE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.RIGHT_BRACE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.LEFT_BRACKET), .{ .prefix = array, .infix = null, .precedence = .NONE } },
+        .{ @tagName(TokenType.LEFT_BRACKET), .{ .prefix = array, .infix = access, .precedence = .CALL } },
         .{ @tagName(TokenType.RIGHT_BRACKET), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.COMMA), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.DOT), .{ .prefix = null, .infix = null, .precedence = .NONE } },
@@ -614,6 +614,23 @@ const Parser = struct {
             return 255;
         }
         return @intCast(arg_count);
+    }
+
+    fn access(self: *Parser, args: ParseArguments) void {
+        if (self.match(.RIGHT_BRACKET) and args.can_assign) {
+            self.consume(.EQUAL, "Expect '=' after append operator.");
+            self.expression();
+            self.emitByte(.{ .OPCODE = .APPEND });
+            return;
+        }
+        self.expression();
+        self.consume(.RIGHT_BRACKET, "Expect ']' after array key.");
+        if (args.can_assign and self.match(.EQUAL)) {
+            self.expression();
+            self.emitByte(.{ .OPCODE = .SET_ARRAY });
+        } else {
+            self.emitByte(.{ .OPCODE = .GET_ARRAY });
+        }
     }
 
     fn array(self: *Parser, _: ParseArguments) void {

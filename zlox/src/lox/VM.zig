@@ -67,6 +67,7 @@ pub fn init(alloc: Allocator, gc: *GC) VM {
     vm.defineNative("clock", &NativeFunctions.clock);
     vm.defineNative("print", &NativeFunctions.print);
     vm.defineNative("read", &NativeFunctions.read);
+    vm.defineNative("count", &NativeFunctions.count);
 
     return vm;
 }
@@ -203,6 +204,69 @@ fn run(self: *VM) InterpreterResult {
             .SET_UPVALUE => {
                 const slot = self.readByte();
                 frame.closure.upvalues[slot].?.location.* = self.peek(0);
+            },
+            .GET_ARRAY => arr: {
+                const key_arg = self.peek(0);
+                const array_arg = self.peek(1);
+                if (!array_arg.isObjType(.ARRAY)) {
+                    self.runtimeError("Can only use index syntax on arrays", .{});
+                    break :arr;
+                }
+                const array = array_arg.OBJ.as(.ARRAY);
+                if (key_arg == .NUMBER) {
+                    if (std.math.modf(key_arg.NUMBER).fpart != 0) {
+                        self.runtimeError("Can only index with whole numbers", .{});
+                        break :arr;
+                    }
+                    const key = std.fmt.allocPrint(self.alloc, "{d:.0}", .{key_arg.NUMBER}) catch unreachable;
+                    defer self.alloc.free(key);
+                    if (array.values.get(key)) |value| {
+                        _ = self.pop(); // key
+                        _ = self.pop(); // array
+                        self.push(value);
+                        break :arr;
+                    }
+                    self.runtimeError("Key not found: {s}", .{key});
+                    break :arr;
+                }
+
+                self.runtimeError("Can only index using whole numbers.", .{});
+            },
+            .SET_ARRAY => arr: {
+                const value = self.peek(0);
+                const key_arg = self.peek(1);
+                const array_arg = self.peek(2);
+                if (!array_arg.isObjType(.ARRAY)) {
+                    self.runtimeError("Can only use index syntax on arrays", .{});
+                    break :arr;
+                }
+                const array = array_arg.OBJ.as(.ARRAY);
+                if (key_arg == .NUMBER) {
+                    if (std.math.modf(key_arg.NUMBER).fpart != 0) {
+                        self.runtimeError("Can only index with whole numbers", .{});
+                        break :arr;
+                    }
+                    const key = std.fmt.allocPrint(self.alloc, "{d:.0}", .{key_arg.NUMBER}) catch unreachable;
+                    const exists = array.values.get(key) != null;
+                    array.values.put(key, value) catch unreachable;
+                    if (exists) {
+                        self.alloc.free(key);
+                    }
+                    break :arr;
+                }
+
+                self.runtimeError("Can only index using whole numbers.", .{});
+            },
+            .APPEND => arr: {
+                const value = self.peek(0);
+                const array_arg = self.peek(1);
+                if (!array_arg.isObjType(.ARRAY)) {
+                    self.runtimeError("Can only use index syntax on arrays", .{});
+                    break :arr;
+                }
+                const array = array_arg.OBJ.as(.ARRAY);
+                const key = std.fmt.allocPrint(self.alloc, "{d}", .{array.values.count()}) catch unreachable;
+                array.values.put(key, value) catch unreachable;
             },
             .ARRAY => {
                 const value_count = self.readByte();
@@ -599,5 +663,20 @@ const NativeFunctions = struct {
             return .{ .OBJ = &string.obj };
         };
         return .{ .NUMBER = floatVal };
+    }
+
+    fn count(args: []Value, vm: *VM) Value {
+        if (args.len != 1) {
+            vm.runtimeError("native function 'count' expects exactly one argument, got {d} arguments.", .{args.len});
+            return .NIL;
+        }
+
+        const array = args[0];
+        if (array != .OBJ or !array.isObjType(.ARRAY)) {
+            vm.runtimeError("native function 'count' expects argument to be array.", .{});
+            return .NIL;
+        }
+
+        return .{ .NUMBER = @floatFromInt(array.OBJ.as(.ARRAY).values.count()) };
     }
 };
