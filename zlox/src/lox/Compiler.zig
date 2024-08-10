@@ -65,7 +65,7 @@ const Parser = struct {
         .{ @tagName(TokenType.LEFT_BRACE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.RIGHT_BRACE), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.COMMA), .{ .prefix = null, .infix = null, .precedence = .NONE } },
-        .{ @tagName(TokenType.DOT), .{ .prefix = null, .infix = dot, .precedence = .CALL } },
+        .{ @tagName(TokenType.DOT), .{ .prefix = null, .infix = null, .precedence = .NONE } },
         .{ @tagName(TokenType.MINUS), .{ .prefix = unary, .infix = binary, .precedence = .TERM } },
         .{ @tagName(TokenType.PLUS), .{ .prefix = null, .infix = binary, .precedence = .TERM } },
         .{ @tagName(TokenType.SEMICOLON), .{ .prefix = null, .infix = null, .precedence = .NONE } },
@@ -150,9 +150,7 @@ const Parser = struct {
     }
 
     fn declaration(self: *Parser) void {
-        if (self.match(.CLASS)) {
-            self.classDeclaration();
-        } else if (self.match(.FUN)) {
+        if (self.match(.FUN)) {
             self.funDeclaration();
         } else if (self.match(.VAR)) {
             self.varDeclaration();
@@ -163,18 +161,6 @@ const Parser = struct {
         if (self.panic_mode) {
             self.synchronize();
         }
-    }
-
-    fn classDeclaration(self: *Parser) void {
-        self.consume(.IDENTIFIER, "Expect class name.");
-        const name_constant = self.identifierConstant(self.previous);
-        self.declareVariable();
-
-        self.emitBytes(.{ .OPCODE = .CLASS }, .{ .RAW = name_constant });
-        self.defineVariable(name_constant);
-
-        self.consume(.LEFT_BRACE, "Expect '{' before class body.");
-        self.consume(.RIGHT_BRACE, "Expect '}' after class body.");
     }
 
     fn funDeclaration(self: *Parser) void {
@@ -606,18 +592,6 @@ const Parser = struct {
     fn call(self: *Parser, _: ParseArguments) void {
         const arg_count = self.argumentList();
         self.emitBytes(.{ .OPCODE = .CALL }, .{ .RAW = arg_count });
-    }
-
-    fn dot(self: *Parser, params: ParseArguments) void {
-        self.consume(.IDENTIFIER, "Expect property name after '.'.");
-        const name = self.identifierConstant(self.previous);
-
-        if (params.can_assign and self.match(.EQUAL)) {
-            self.expression();
-            self.emitBytes(.{ .OPCODE = .SET_PROPERTY }, .{ .RAW = name });
-        } else {
-            self.emitBytes(.{ .OPCODE = .GET_PROPERTY }, .{ .RAW = name });
-        }
     }
 
     fn argumentList(self: *Parser) u8 {

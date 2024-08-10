@@ -149,15 +149,6 @@ fn blackenObject(self: *GC, obj: *Obj) void {
                 }
             }
         },
-        .CLASS => {
-            const class = obj.as(.CLASS);
-            self.markObject(&class.name.obj);
-        },
-        .INSTANCE => {
-            const instance = obj.as(.INSTANCE);
-            self.markObject(&instance.klass.obj);
-            self.markTable(&instance.fields);
-        },
     }
 }
 

@@ -125,11 +125,6 @@ fn run(self: *VM) InterpreterResult {
         const instruction: OpCode = @enumFromInt(byte);
         switch (instruction) {
             .POP => _ = self.pop(),
-            .CLASS => {
-                const name = self.readConstant().OBJ.as(.STRING);
-                const class = Obj.Class.create(self.alloc, name, self);
-                self.push(.{ .OBJ = &class.obj });
-            },
             .CLOSE_UPVALUE => {
                 self.closeUpvalues(&self.stack[self.stack_top - 1]);
                 _ = self.pop();
@@ -174,35 +169,6 @@ fn run(self: *VM) InterpreterResult {
                 const name = self.readConstant().OBJ.as(.STRING);
                 self.globals.put(name.chars, self.peek(0)) catch unreachable;
                 _ = self.pop();
-            },
-            .GET_PROPERTY => get: {
-                const peeked = self.peek(0);
-                if (peeked != .OBJ or peeked.OBJ.type != .INSTANCE) {
-                    self.runtimeError("Only instances have properties.", .{});
-                    break :get;
-                }
-                const instance = peeked.OBJ.as(.INSTANCE);
-                const name = self.readConstant().OBJ.as(.STRING);
-
-                if (instance.fields.get(name.chars)) |value| {
-                    _ = self.pop();
-                    self.push(value);
-                } else {
-                    self.runtimeError("Undefined property '{s}'.", .{name.chars});
-                }
-            },
-            .SET_PROPERTY => set: {
-                const peeked = self.peek(1);
-                if (peeked != .OBJ or peeked.OBJ.type != .INSTANCE) {
-                    self.runtimeError("Only instances have properties.", .{});
-                    break :set;
-                }
-
-                const instance = peeked.OBJ.as(.INSTANCE);
-                instance.fields.put(self.readConstant().OBJ.as(.STRING).chars, self.peek(0)) catch unreachable;
-                const value = self.pop();
-                _ = self.pop();
-                self.push(value);
             },
             .GET_GLOBAL => get: {
                 const name = self.readConstant().OBJ.as(.STRING);
@@ -382,11 +348,6 @@ fn callValue(self: *VM, callee: Value, arg_count: usize) RuntimeError!void {
                 self.push(result);
                 return;
             },
-            .CLASS => {
-                const klass = callee.OBJ.as(.CLASS);
-                self.stack[self.stack_top - arg_count - 1] = .{ .OBJ = &Obj.Instance.create(self.alloc, klass, self).obj };
-                return;
-            },
             else => {},
         }
     }
@@ -522,16 +483,6 @@ fn valuesEqual(a: Value, b: Value) bool {
                     const up_a = obj_a.as(.UPVALUE);
                     const up_b = obj_b.as(.UPVALUE);
                     return valuesEqual(up_a.location.*, up_b.location.*);
-                },
-                .CLASS => {
-                    const class_a = obj_a.as(.CLASS);
-                    const class_b = obj_b.as(.CLASS);
-                    return class_a == class_b;
-                },
-                .INSTANCE => {
-                    const instance_a = obj_a.as(.INSTANCE);
-                    const instance_b = obj_b.as(.INSTANCE);
-                    return instance_a == instance_b;
                 },
             }
         },

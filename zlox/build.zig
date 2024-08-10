@@ -10,7 +10,10 @@ const Options = struct {
 };
 
 pub fn build(b: *std.Build) void {
-    const debug = b.option(bool, "debug", "Enable all tracing and debugging infos") orelse false;
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+    const is_debug_mode = optimize == .Debug;
+    const debug = b.option(bool, "debug", "Enable all tracing and debugging infos") orelse is_debug_mode;
     const stack_trace = b.option(bool, "stack-trace", "Enable debug tracing of Value Stack") orelse debug;
     const chunk_trace = b.option(bool, "chunk-trace", "Enable debug tracing of Chunks") orelse debug;
     const stress_gc = b.option(bool, "stress-gc", "Enable stress-testing of Garbage Collector") orelse debug;
@@ -21,8 +24,8 @@ pub fn build(b: *std.Build) void {
         .stack_trace = stack_trace,
         .stress_gc = stress_gc,
         .log_gc = log_gc,
-        .target = b.standardTargetOptions(.{}),
-        .optimize = b.standardOptimizeOption(.{}),
+        .target = target,
+        .optimize = optimize,
     };
 
     const exe = makeStep(b, options);
