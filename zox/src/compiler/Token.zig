@@ -1,0 +1,47 @@
+lexeme: []const u8,
+line: usize,
+
+type: Type,
+
+pub const Type = enum {
+    @"(",
+    @")",
+    @"{",
+    @"}",
+    @",",
+    @".",
+    @";",
+    @"+",
+    @"-",
+    @"/",
+    @"*",
+
+    @"!",
+    @"!=",
+    @"=",
+    @"==",
+    @"<",
+    @"<=",
+    @">",
+    @">=",
+
+    IDENTIFIER,
+    STRING,
+    NUMBER,
+
+    AND,
+    ELSE,
+    FALSE,
+    FOR,
+    FUN,
+    IF,
+    NIL,
+    OR,
+    PRINT,
+    RETURN,
+    TRUE,
+    VAR,
+    WHILE,
+
+    EOF,
+};
