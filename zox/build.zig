@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const zli = b.dependency("zli", .{ .target = target, .optimize = optimize });
 
     const exe = b.addExecutable(.{
         .name = "zox",
@@ -11,6 +12,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    exe.root_module.addImport("Zli", zli.module("Zli"));
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
