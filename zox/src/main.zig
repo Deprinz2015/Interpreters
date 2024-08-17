@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Zli = @import("Zli");
 const Scanner = @import("compiler/Scanner.zig");
+const Parser = @import("compiler/Parser.zig");
 const Token = @import("compiler/Token.zig");
 
 pub fn main() !void {
@@ -30,38 +31,16 @@ pub fn main() !void {
 }
 
 fn compile(alloc: Allocator) void {
-    var arena = std.heap.ArenaAllocator.init(alloc);
-    defer arena.deinit();
-    const aa = arena.allocator();
-    _ = aa;
-
-    const source =
-        \\ +-/* // operators
-        \\ {()} // grouping
-        \\ ! != = == < <= > >= // comparisons
-        \\ 12 34.5 // numbers
-        \\ "test" // string
-        \\ ident // identifier
-        \\ // keywords
-        \\ and
-        \\ else
-        \\ false
-        \\ for
-        \\ fun
-        \\ if
-        \\ nil
-        \\ or
-        \\ print
-        \\ return
-        \\ true
-        \\ var
-        \\ while
-    ;
+    const source = "-12345";
 
     var scanner = Scanner.init(source);
-    var token: Token = scanner.nextToken();
-    while (token.type != .EOF) : (token = scanner.nextToken()) {
-        std.debug.print("Token: {}\n", .{token});
+    var parser = Parser.init(alloc, &scanner);
+    defer parser.deinit();
+
+    const ast = parser.parse();
+    if (ast) |root| {
+        std.debug.print("Got A Tree\n", .{});
+        std.debug.print("{}\n", .{root.*});
     }
 }
 
