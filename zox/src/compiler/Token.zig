@@ -1,7 +1,13 @@
+const std = @import("std");
+
 lexeme: []const u8,
 line: usize,
 
 type: Type,
+
+pub fn format(token: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+    try writer.print("TOKEN {s} - '{s}'", .{ @tagName(token.type), token.lexeme });
+}
 
 pub const Type = enum {
     @"(",
@@ -44,4 +50,5 @@ pub const Type = enum {
     WHILE,
 
     EOF,
+    ERROR,
 };

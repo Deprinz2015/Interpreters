@@ -1,6 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Zli = @import("Zli");
+const Scanner = @import("compiler/Scanner.zig");
+const Token = @import("compiler/Token.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -33,7 +35,34 @@ fn compile(alloc: Allocator) void {
     const aa = arena.allocator();
     _ = aa;
 
-    // TODO: Hook up Scanner to test behaviour
+    const source =
+        \\ +-/* // operators
+        \\ {()} // grouping
+        \\ ! != = == < <= > >= // comparisons
+        \\ 12 34.5 // numbers
+        \\ "test" // string
+        \\ ident // identifier
+        \\ // keywords
+        \\ and
+        \\ else
+        \\ false
+        \\ for
+        \\ fun
+        \\ if
+        \\ nil
+        \\ or
+        \\ print
+        \\ return
+        \\ true
+        \\ var
+        \\ while
+    ;
+
+    var scanner = Scanner.init(source);
+    var token: Token = scanner.nextToken();
+    while (token.type != .EOF) : (token = scanner.nextToken()) {
+        std.debug.print("Token: {}\n", .{token});
+    }
 }
 
 fn run() void {}
