@@ -132,6 +132,10 @@ fn unary(self: *Parser) Error!*ast.Expr {
     return self.primary();
 }
 
+// TODO: Add a call expression between unary and primary
+// unary   → ( "!" | "-" ) unary | call ;
+// call    → primary ( "(" arguments? ")" )* ;
+
 fn primary(self: *Parser) Error!*ast.Expr {
     if (self.match(.FALSE)) {
         return self.literal(.{ .boolean = false });

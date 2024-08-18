@@ -137,6 +137,39 @@ pub const Expr = union(enum) {
     }
 };
 
+pub const Stmt = union(enum) {
+    expression: Expression,
+    print: Print,
+
+    pub fn expression(alloc: Allocator, expr: *Expr) !*Stmt {
+        const node = try alloc.create(Stmt);
+        node.* = .{
+            .expression = .{
+                .expr = expr,
+            },
+        };
+        return node;
+    }
+
+    pub fn print(alloc: Allocator, expr: *Expr) !*Stmt {
+        const node = try alloc.create(Stmt);
+        node.* = .{
+            .print = .{
+                .expr = expr,
+            },
+        };
+        return node;
+    }
+
+    pub const Expression = struct {
+        expr: *Expr,
+    };
+
+    pub const Print = struct {
+        expr: *Expr,
+    };
+};
+
 pub const PrettyPrinter = struct {
     const StdOut = std.io.getStdOut().writer();
 
@@ -185,5 +218,3 @@ pub const PrettyPrinter = struct {
         }
     }
 };
-
-// pub const Statement = union(enum) {};
