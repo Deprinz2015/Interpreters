@@ -7,6 +7,8 @@ pub const Expr = union(enum) {
     unary: Unary,
     binary: Binary,
     logical: Logical,
+    variable: Variable,
+    assignment: Assignment,
 
     pub fn literal(alloc: Allocator, token: Token, value: Literal.Value) !*Expr {
         const node = try alloc.create(Expr);
@@ -58,6 +60,28 @@ pub const Expr = union(enum) {
         return node;
     }
 
+    pub fn variable(alloc: Allocator, name: Token) !*Expr {
+        const node = try alloc.create(Expr);
+        node.* = .{
+            .variable = .{
+                .name = name,
+            },
+        };
+        return node;
+    }
+
+    pub fn assignment(alloc: Allocator, name: Token, value: *Expr) !*Expr {
+        const node = try alloc.create(Expr);
+        node.* = .{
+            .assignment = .{
+                .name = name,
+                .value = value,
+            },
+        };
+
+        return node;
+    }
+
     pub const Literal = struct {
         token: Token,
         value: Value,
@@ -87,6 +111,15 @@ pub const Expr = union(enum) {
         right: *Expr,
     };
 
+    pub const Variable = struct {
+        name: Token,
+    };
+
+    pub const Assignment = struct {
+        name: Token,
+        value: *Expr,
+    };
+
     pub fn format(value: Expr, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (value) {
             .literal => switch (value.literal.value) {
@@ -98,6 +131,8 @@ pub const Expr = union(enum) {
             .unary => try writer.print("Unary: {s} expr", .{value.unary.op.lexeme}),
             .binary => try writer.print("Binary: {s}", .{value.binary.op.lexeme}),
             .logical => try writer.print("Logical: {s}", .{value.logical.op.lexeme}),
+            .assignment => try writer.print("Assignment: {s} expr", .{value.assignment.name.lexeme}),
+            .variable => try writer.print("Variable: {s}", .{value.variable.name.lexeme}),
         }
     }
 };
@@ -137,6 +172,15 @@ pub const PrettyPrinter = struct {
                 try StdOut.writeByte('\n');
                 try printExprOnLevel(logical.left, level + 1);
                 try printExprOnLevel(logical.right, level + 1);
+            },
+            .variable => |variable| {
+                try StdOut.print("(variable: {s})", .{variable.name.lexeme});
+                try StdOut.writeByte('\n');
+            },
+            .assignment => |assign| {
+                try StdOut.print("(assignment '{s}' - expr)", .{assign.name.lexeme});
+                try StdOut.writeByte('\n');
+                try printExprOnLevel(assign.value, level + 1);
             },
         }
     }

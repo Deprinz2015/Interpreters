@@ -13,6 +13,7 @@ const Error = error{
     MissingExpression,
     WrongNumberFormat,
     CouldNotGenerateNode,
+    InvalidAssignment,
 };
 
 scanner: *Scanner,
@@ -40,7 +41,22 @@ pub fn parse(self: *Parser) ?*ast.Expr {
 }
 
 fn expression(self: *Parser) Error!*ast.Expr {
-    return self.logical_or();
+    return self.assignment();
+}
+
+fn assignment(self: *Parser) Error!*ast.Expr {
+    const expr = try self.logical_or();
+    if (self.match(.@"=")) {
+        if (expr.* == .variable) {
+            const value = try self.expression();
+            return ast.Expr.assignment(self.alloc.allocator(), expr.variable.name, value) catch Error.CouldNotGenerateNode;
+        }
+
+        printError("Invalid assignment target", .{});
+        return Error.InvalidAssignment;
+    }
+
+    return expr;
 }
 
 fn logical_or(self: *Parser) Error!*ast.Expr {
@@ -137,6 +153,9 @@ fn primary(self: *Parser) Error!*ast.Expr {
             return Error.WrongNumberFormat;
         };
         return self.literal(.{ .number = number });
+    }
+    if (self.match(.IDENTIFIER)) {
+        return ast.Expr.variable(self.alloc.allocator(), self.previous.?) catch Error.CouldNotGenerateNode;
     }
     if (self.match(.@"(")) {
         const expr = try self.expression();
