@@ -39,7 +39,29 @@ pub fn parse(self: *Parser) ?*ast.Expr {
 }
 
 fn expression(self: *Parser) !*ast.Expr {
-    return self.unary();
+    return self.term();
+}
+
+fn term(self: *Parser) !*ast.Expr {
+    var left = try self.factor();
+    while (self.match(.@"+") or self.match(.@"-")) {
+        const op = self.previous.?;
+        const right = try self.factor();
+        left = try ast.Expr.binary(self.alloc.allocator(), op, left, right);
+    }
+
+    return left;
+}
+
+fn factor(self: *Parser) !*ast.Expr {
+    var left = try self.unary();
+    while (self.match(.@"/") or self.match(.@"*")) {
+        const op = self.previous.?;
+        const right = try self.unary();
+        left = try ast.Expr.binary(self.alloc.allocator(), op, left, right);
+    }
+
+    return left;
 }
 
 fn unary(self: *Parser) !*ast.Expr {
@@ -51,26 +73,30 @@ fn unary(self: *Parser) !*ast.Expr {
 }
 
 fn primary(self: *Parser) !*ast.Expr {
-    switch (self.current.type) {
-        .FALSE => return ast.Expr.literal(self.alloc.allocator(), self.current, .{ .boolean = false }),
-        .TRUE => return ast.Expr.literal(self.alloc.allocator(), self.current, .{ .boolean = true }),
-        .NIL => return ast.Expr.literal(self.alloc.allocator(), self.current, .nil),
-        .STRING => {
-            const string = self.current.lexeme[1 .. self.current.lexeme.len - 1];
-            return ast.Expr.literal(self.alloc.allocator(), self.current, .{ .string = string });
-        },
-        .NUMBER => {
-            const number = std.fmt.parseFloat(f64, self.current.lexeme) catch {
-                printError("'{s}' is not a number", .{self.current.lexeme});
-                return Error.WrongNumberFormat;
-            };
-            return ast.Expr.literal(self.alloc.allocator(), self.current, .{ .number = number });
-        },
-        else => {
-            printError("Expected Expression", .{});
-            return Error.MissingExpression;
-        },
+    if (self.match(.FALSE)) {
+        return ast.Expr.literal(self.alloc.allocator(), self.previous.?, .{ .boolean = false });
     }
+    if (self.match(.TRUE)) {
+        return ast.Expr.literal(self.alloc.allocator(), self.previous.?, .{ .boolean = true });
+    }
+    if (self.match(.NIL)) {
+        return ast.Expr.literal(self.alloc.allocator(), self.previous.?, .nil);
+    }
+    if (self.match(.STRING)) {
+        const prev_string = self.previousLexeme().?;
+        const string = prev_string[1 .. prev_string.len - 1];
+        return ast.Expr.literal(self.alloc.allocator(), self.previous.?, .{ .string = string });
+    }
+    if (self.match(.NUMBER)) {
+        const number = std.fmt.parseFloat(f64, self.previousLexeme().?) catch {
+            printError("'{s}' is not a number", .{self.previousLexeme().?});
+            return Error.WrongNumberFormat;
+        };
+        return ast.Expr.literal(self.alloc.allocator(), self.current, .{ .number = number });
+    }
+
+    printError("Expected Expression", .{});
+    return Error.MissingExpression;
 }
 
 fn advance(self: *Parser) void {
@@ -97,6 +123,17 @@ fn consume(self: *Parser, t_type: Token.Type, msg: []const u8) !void {
 
     printError(msg, .{});
     return Error.WrongTokenType;
+}
+
+fn currentLexeme(self: *Parser) []const u8 {
+    return self.current.lexeme;
+}
+
+fn previousLexeme(self: *Parser) ?[]const u8 {
+    if (self.previous) |prev| {
+        return prev.lexeme;
+    }
+    return null;
 }
 
 fn printError(comptime format: []const u8, args: anytype) void {

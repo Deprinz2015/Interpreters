@@ -5,6 +5,7 @@ const Token = @import("Token.zig");
 pub const Expr = union(enum) {
     literal: Literal,
     unary: Unary,
+    binary: Binary,
 
     pub fn literal(alloc: Allocator, token: Token, value: std.meta.FieldType(Literal, .value)) !*Expr {
         const node = try alloc.create(Expr);
@@ -30,6 +31,19 @@ pub const Expr = union(enum) {
         return node;
     }
 
+    pub fn binary(alloc: Allocator, op: Token, left: *Expr, right: *Expr) !*Expr {
+        const node = try alloc.create(Expr);
+        node.* = .{
+            .binary = .{
+                .op = op,
+                .left = left,
+                .right = right,
+            },
+        };
+
+        return node;
+    }
+
     const Literal = struct {
         token: Token,
         value: union(enum) {
@@ -45,6 +59,12 @@ pub const Expr = union(enum) {
         expr: *Expr,
     };
 
+    const Binary = struct {
+        op: Token,
+        left: *Expr,
+        right: *Expr,
+    };
+
     pub fn format(value: Expr, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (value) {
             .literal => switch (value.literal.value) {
@@ -54,6 +74,7 @@ pub const Expr = union(enum) {
                 .boolean => |val| try writer.writeAll(if (val) "true" else "false"),
             },
             .unary => try writer.print("Unary: {s} {}", .{ value.unary.op.lexeme, value.unary.expr.* }),
+            .binary => try writer.print("Binary: ({}) {s} ({})", .{ value.binary.left.*, value.binary.op.lexeme, value.binary.right.* }),
         }
     }
 };

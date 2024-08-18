@@ -31,7 +31,7 @@ pub fn main() !void {
 }
 
 fn compile(alloc: Allocator) void {
-    const source = "-12345";
+    const source = "-12345 * 7 + 88 / 12";
 
     var scanner = Scanner.init(source);
     var parser = Parser.init(alloc, &scanner);
