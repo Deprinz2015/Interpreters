@@ -7,7 +7,7 @@ pub const Expr = union(enum) {
     unary: Unary,
     binary: Binary,
 
-    pub fn literal(alloc: Allocator, token: Token, value: std.meta.FieldType(Literal, .value)) !*Expr {
+    pub fn literal(alloc: Allocator, token: Token, value: Literal.Value) !*Expr {
         const node = try alloc.create(Expr);
         node.* = .{
             .literal = .{
@@ -44,22 +44,24 @@ pub const Expr = union(enum) {
         return node;
     }
 
-    const Literal = struct {
+    pub const Literal = struct {
         token: Token,
-        value: union(enum) {
+        value: Value,
+
+        pub const Value = union(enum) {
             number: f64,
             string: []const u8,
             nil: void,
             boolean: bool,
-        },
+        };
     };
 
-    const Unary = struct {
+    pub const Unary = struct {
         op: Token,
         expr: *Expr,
     };
 
-    const Binary = struct {
+    pub const Binary = struct {
         op: Token,
         left: *Expr,
         right: *Expr,
@@ -73,8 +75,42 @@ pub const Expr = union(enum) {
                 .nil => try writer.writeAll("nil"),
                 .boolean => |val| try writer.writeAll(if (val) "true" else "false"),
             },
-            .unary => try writer.print("Unary: {s} {}", .{ value.unary.op.lexeme, value.unary.expr.* }),
-            .binary => try writer.print("Binary: ({}) {s} ({})", .{ value.binary.left.*, value.binary.op.lexeme, value.binary.right.* }),
+            .unary => try writer.print("Unary: {s} expr", .{value.unary.op.lexeme}),
+            .binary => try writer.print("Binary: {s}", .{value.binary.op.lexeme}),
+        }
+    }
+};
+
+pub const PrettyPrinter = struct {
+    const StdOut = std.io.getStdOut().writer();
+
+    pub fn print(root: *Expr) !void {
+        try printExprOnLevel(root, 0);
+    }
+
+    fn printExprOnLevel(node: *Expr, level: u8) !void {
+        try StdOut.writeAll("|");
+        for (0..level) |_| {
+            try StdOut.writeAll(" |");
+        }
+
+        try StdOut.writeAll("-");
+        switch (node.*) {
+            .literal => {
+                try StdOut.print("(literal: {})", .{node.*});
+                try StdOut.writeByte('\n');
+            },
+            .binary => |binary| {
+                try StdOut.print("(binary '{s}' - left, right)", .{binary.op.lexeme});
+                try StdOut.writeByte('\n');
+                try printExprOnLevel(binary.left, level + 1);
+                try printExprOnLevel(binary.right, level + 1);
+            },
+            .unary => |unary| {
+                try StdOut.print("(unary '{s}' - expr)", .{unary.op.lexeme});
+                try StdOut.writeByte('\n');
+                try printExprOnLevel(unary.expr, level + 1);
+            },
         }
     }
 };

@@ -31,7 +31,7 @@ pub fn main() !void {
 }
 
 fn compile(alloc: Allocator) void {
-    const source = "-12345 * 7 + 88 / 12";
+    const source = "-12345 * ( 7 + 88 ) / 12";
 
     var scanner = Scanner.init(source);
     var parser = Parser.init(alloc, &scanner);
@@ -39,8 +39,8 @@ fn compile(alloc: Allocator) void {
 
     const ast = parser.parse();
     if (ast) |root| {
-        std.debug.print("Got A Tree\n", .{});
-        std.debug.print("{}\n", .{root.*});
+        std.debug.print("Got a tree\n", .{});
+        @import("compiler/ast.zig").PrettyPrinter.print(root) catch unreachable;
     }
 }
 

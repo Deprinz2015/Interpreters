@@ -12,6 +12,7 @@ const Error = error{
     UnexpectedToken,
     MissingExpression,
     WrongNumberFormat,
+    CouldNotGenerateNode,
 };
 
 scanner: *Scanner,
@@ -38,65 +39,74 @@ pub fn parse(self: *Parser) ?*ast.Expr {
     return self.expression() catch null;
 }
 
-fn expression(self: *Parser) !*ast.Expr {
+fn expression(self: *Parser) Error!*ast.Expr {
     return self.term();
 }
 
-fn term(self: *Parser) !*ast.Expr {
+fn term(self: *Parser) Error!*ast.Expr {
     var left = try self.factor();
     while (self.match(.@"+") or self.match(.@"-")) {
         const op = self.previous.?;
         const right = try self.factor();
-        left = try ast.Expr.binary(self.alloc.allocator(), op, left, right);
+        left = ast.Expr.binary(self.alloc.allocator(), op, left, right) catch return Error.CouldNotGenerateNode;
     }
 
     return left;
 }
 
-fn factor(self: *Parser) !*ast.Expr {
+fn factor(self: *Parser) Error!*ast.Expr {
     var left = try self.unary();
     while (self.match(.@"/") or self.match(.@"*")) {
         const op = self.previous.?;
         const right = try self.unary();
-        left = try ast.Expr.binary(self.alloc.allocator(), op, left, right);
+        left = ast.Expr.binary(self.alloc.allocator(), op, left, right) catch return Error.CouldNotGenerateNode;
     }
 
     return left;
 }
 
-fn unary(self: *Parser) !*ast.Expr {
+fn unary(self: *Parser) Error!*ast.Expr {
     if (self.match(.@"-") or self.match(.@"!")) {
-        return ast.Expr.unary(self.alloc.allocator(), self.previous.?, try self.unary());
+        return ast.Expr.unary(self.alloc.allocator(), self.previous.?, try self.unary()) catch Error.CouldNotGenerateNode;
     }
 
     return self.primary();
 }
 
-fn primary(self: *Parser) !*ast.Expr {
+fn primary(self: *Parser) Error!*ast.Expr {
     if (self.match(.FALSE)) {
-        return ast.Expr.literal(self.alloc.allocator(), self.previous.?, .{ .boolean = false });
+        return self.literalFromPrevious(.{ .boolean = false });
     }
     if (self.match(.TRUE)) {
-        return ast.Expr.literal(self.alloc.allocator(), self.previous.?, .{ .boolean = true });
+        return self.literalFromPrevious(.{ .boolean = true });
     }
     if (self.match(.NIL)) {
-        return ast.Expr.literal(self.alloc.allocator(), self.previous.?, .nil);
+        return self.literalFromPrevious(.nil);
     }
     if (self.match(.STRING)) {
         const prev_string = self.previousLexeme().?;
         const string = prev_string[1 .. prev_string.len - 1];
-        return ast.Expr.literal(self.alloc.allocator(), self.previous.?, .{ .string = string });
+        return self.literalFromPrevious(.{ .string = string });
     }
     if (self.match(.NUMBER)) {
         const number = std.fmt.parseFloat(f64, self.previousLexeme().?) catch {
             printError("'{s}' is not a number", .{self.previousLexeme().?});
             return Error.WrongNumberFormat;
         };
-        return ast.Expr.literal(self.alloc.allocator(), self.current, .{ .number = number });
+        return self.literalFromPrevious(.{ .number = number });
+    }
+    if (self.match(.@"(")) {
+        const expr = try self.expression();
+        try self.consume(.@")", "Expect ')' after expression");
+        return expr;
     }
 
     printError("Expected Expression", .{});
     return Error.MissingExpression;
+}
+
+fn literalFromPrevious(self: *Parser, value: ast.Expr.Literal.Value) Error!*ast.Expr {
+    return ast.Expr.literal(self.alloc.allocator(), self.previous.?, value) catch Error.CouldNotGenerateNode;
 }
 
 fn advance(self: *Parser) void {
@@ -116,13 +126,14 @@ fn match(self: *Parser, t_type: Token.Type) bool {
     return false;
 }
 
-fn consume(self: *Parser, t_type: Token.Type, msg: []const u8) !void {
+fn consume(self: *Parser, t_type: Token.Type, comptime msg: []const u8) Error!void {
     if (self.check(t_type)) {
         self.advance();
+        return;
     }
 
     printError(msg, .{});
-    return Error.WrongTokenType;
+    return Error.UnexpectedToken;
 }
 
 fn currentLexeme(self: *Parser) []const u8 {
