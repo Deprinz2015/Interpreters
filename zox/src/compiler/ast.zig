@@ -6,6 +6,7 @@ pub const Expr = union(enum) {
     literal: Literal,
     unary: Unary,
     binary: Binary,
+    logical: Logical,
 
     pub fn literal(alloc: Allocator, token: Token, value: Literal.Value) !*Expr {
         const node = try alloc.create(Expr);
@@ -44,6 +45,19 @@ pub const Expr = union(enum) {
         return node;
     }
 
+    pub fn logical(alloc: Allocator, op: Token, left: *Expr, right: *Expr) !*Expr {
+        const node = try alloc.create(Expr);
+        node.* = .{
+            .logical = .{
+                .op = op,
+                .left = left,
+                .right = right,
+            },
+        };
+
+        return node;
+    }
+
     pub const Literal = struct {
         token: Token,
         value: Value,
@@ -67,6 +81,12 @@ pub const Expr = union(enum) {
         right: *Expr,
     };
 
+    pub const Logical = struct {
+        op: Token,
+        left: *Expr,
+        right: *Expr,
+    };
+
     pub fn format(value: Expr, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (value) {
             .literal => switch (value.literal.value) {
@@ -77,6 +97,7 @@ pub const Expr = union(enum) {
             },
             .unary => try writer.print("Unary: {s} expr", .{value.unary.op.lexeme}),
             .binary => try writer.print("Binary: {s}", .{value.binary.op.lexeme}),
+            .logical => try writer.print("Logical: {s}", .{value.logical.op.lexeme}),
         }
     }
 };
@@ -100,16 +121,22 @@ pub const PrettyPrinter = struct {
                 try StdOut.print("(literal: {})", .{node.*});
                 try StdOut.writeByte('\n');
             },
+            .unary => |unary| {
+                try StdOut.print("(unary '{s}' - expr)", .{unary.op.lexeme});
+                try StdOut.writeByte('\n');
+                try printExprOnLevel(unary.expr, level + 1);
+            },
             .binary => |binary| {
                 try StdOut.print("(binary '{s}' - left, right)", .{binary.op.lexeme});
                 try StdOut.writeByte('\n');
                 try printExprOnLevel(binary.left, level + 1);
                 try printExprOnLevel(binary.right, level + 1);
             },
-            .unary => |unary| {
-                try StdOut.print("(unary '{s}' - expr)", .{unary.op.lexeme});
+            .logical => |logical| {
+                try StdOut.print("(logical '{s}' - left, right)", .{logical.op.lexeme});
                 try StdOut.writeByte('\n');
-                try printExprOnLevel(unary.expr, level + 1);
+                try printExprOnLevel(logical.left, level + 1);
+                try printExprOnLevel(logical.right, level + 1);
             },
         }
     }

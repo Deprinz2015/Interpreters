@@ -40,7 +40,50 @@ pub fn parse(self: *Parser) ?*ast.Expr {
 }
 
 fn expression(self: *Parser) Error!*ast.Expr {
-    return self.term();
+    return self.logical_or();
+}
+
+fn logical_or(self: *Parser) Error!*ast.Expr {
+    var left = try self.logical_and();
+    while (self.match(.OR)) {
+        const op = self.previous.?;
+        const right = try self.logical_and();
+        left = try self.logical(op, left, right);
+    }
+
+    return left;
+}
+
+fn logical_and(self: *Parser) Error!*ast.Expr {
+    var left = try self.equality();
+    while (self.match(.AND)) {
+        const op = self.previous.?;
+        const right = try self.equality();
+        left = try self.logical(op, left, right);
+    }
+
+    return left;
+}
+
+fn equality(self: *Parser) Error!*ast.Expr {
+    var left = try self.comparison();
+    while (self.match(.@"==") or self.match(.@"!=")) {
+        const op = self.previous.?;
+        const right = try self.comparison();
+        left = try self.binary(op, left, right);
+    }
+
+    return left;
+}
+
+fn comparison(self: *Parser) Error!*ast.Expr {
+    var left = try self.term();
+    while (self.match(.@"<") or self.match(.@"<=") or self.match(.@">") or self.match(.@">=")) {
+        const op = self.previous.?;
+        const right = try self.term();
+        left = try self.binary(op, left, right);
+    }
+    return left;
 }
 
 fn term(self: *Parser) Error!*ast.Expr {
@@ -48,7 +91,7 @@ fn term(self: *Parser) Error!*ast.Expr {
     while (self.match(.@"+") or self.match(.@"-")) {
         const op = self.previous.?;
         const right = try self.factor();
-        left = ast.Expr.binary(self.alloc.allocator(), op, left, right) catch return Error.CouldNotGenerateNode;
+        left = try self.binary(op, left, right);
     }
 
     return left;
@@ -59,7 +102,7 @@ fn factor(self: *Parser) Error!*ast.Expr {
     while (self.match(.@"/") or self.match(.@"*")) {
         const op = self.previous.?;
         const right = try self.unary();
-        left = ast.Expr.binary(self.alloc.allocator(), op, left, right) catch return Error.CouldNotGenerateNode;
+        left = try self.binary(op, left, right);
     }
 
     return left;
@@ -75,25 +118,25 @@ fn unary(self: *Parser) Error!*ast.Expr {
 
 fn primary(self: *Parser) Error!*ast.Expr {
     if (self.match(.FALSE)) {
-        return self.literalFromPrevious(.{ .boolean = false });
+        return self.literal(.{ .boolean = false });
     }
     if (self.match(.TRUE)) {
-        return self.literalFromPrevious(.{ .boolean = true });
+        return self.literal(.{ .boolean = true });
     }
     if (self.match(.NIL)) {
-        return self.literalFromPrevious(.nil);
+        return self.literal(.nil);
     }
     if (self.match(.STRING)) {
         const prev_string = self.previousLexeme().?;
         const string = prev_string[1 .. prev_string.len - 1];
-        return self.literalFromPrevious(.{ .string = string });
+        return self.literal(.{ .string = string });
     }
     if (self.match(.NUMBER)) {
         const number = std.fmt.parseFloat(f64, self.previousLexeme().?) catch {
             printError("'{s}' is not a number", .{self.previousLexeme().?});
             return Error.WrongNumberFormat;
         };
-        return self.literalFromPrevious(.{ .number = number });
+        return self.literal(.{ .number = number });
     }
     if (self.match(.@"(")) {
         const expr = try self.expression();
@@ -105,8 +148,16 @@ fn primary(self: *Parser) Error!*ast.Expr {
     return Error.MissingExpression;
 }
 
-fn literalFromPrevious(self: *Parser, value: ast.Expr.Literal.Value) Error!*ast.Expr {
+fn literal(self: *Parser, value: ast.Expr.Literal.Value) Error!*ast.Expr {
     return ast.Expr.literal(self.alloc.allocator(), self.previous.?, value) catch Error.CouldNotGenerateNode;
+}
+
+fn binary(self: *Parser, op: Token, left: *ast.Expr, right: *ast.Expr) Error!*ast.Expr {
+    return ast.Expr.binary(self.alloc.allocator(), op, left, right) catch return Error.CouldNotGenerateNode;
+}
+
+fn logical(self: *Parser, op: Token, left: *ast.Expr, right: *ast.Expr) Error!*ast.Expr {
+    return ast.Expr.logical(self.alloc.allocator(), op, left, right) catch return Error.CouldNotGenerateNode;
 }
 
 fn advance(self: *Parser) void {

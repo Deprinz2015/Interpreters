@@ -31,7 +31,7 @@ pub fn main() !void {
 }
 
 fn compile(alloc: Allocator) void {
-    const source = "-12345 * ( 7 + 88 ) / 12";
+    const source = "true and false or 5 > 9 or 8 == 9";
 
     var scanner = Scanner.init(source);
     var parser = Parser.init(alloc, &scanner);
