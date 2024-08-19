@@ -168,6 +168,13 @@ pub const Stmt = union(enum) {
     pub const Print = struct {
         expr: *Expr,
     };
+
+    pub fn format(value: Stmt, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (value) {
+            .expression => try writer.writeAll("Expression: expr"),
+            .print => try writer.writeAll("Print: expr"),
+        }
+    }
 };
 
 pub const PrettyPrinter = struct {
