@@ -31,16 +31,16 @@ pub fn main() !void {
 }
 
 fn compile(alloc: Allocator) void {
-    const source = "a = true and false or 5 > 9 or 8 == 9";
+    const source = "a = true and false or 5 > 9 or 8 == 9; print 1;";
 
     var scanner = Scanner.init(source);
     var parser = Parser.init(alloc, &scanner);
     defer parser.deinit();
 
     const ast = parser.parse();
-    if (ast) |root| {
+    if (ast) |program| {
         std.debug.print("Got a tree\n", .{});
-        @import("compiler/ast.zig").PrettyPrinter.print(root) catch unreachable;
+        @import("compiler/ast.zig").PrettyPrinter.print(program) catch unreachable;
     }
 }
 

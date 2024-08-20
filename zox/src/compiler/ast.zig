@@ -180,8 +180,31 @@ pub const Stmt = union(enum) {
 pub const PrettyPrinter = struct {
     const StdOut = std.io.getStdOut().writer();
 
-    pub fn print(root: *Expr) !void {
-        try printExprOnLevel(root, 0);
+    pub fn print(program: []*Stmt) !void {
+        for (program) |stmt| {
+            try printStmtOnLevel(stmt, 0);
+        }
+    }
+
+    fn printStmtOnLevel(node: *Stmt, level: u8) !void {
+        try StdOut.writeAll("|");
+        for (0..level) |_| {
+            try StdOut.writeAll(" |");
+        }
+
+        try StdOut.writeAll("-");
+        switch (node.*) {
+            .print => {
+                try StdOut.writeAll("[print - expr]");
+                try StdOut.writeByte('\n');
+                try printExprOnLevel(node.print.expr, level + 1);
+            },
+            .expression => {
+                try StdOut.writeAll("[expression - expr]");
+                try StdOut.writeByte('\n');
+                try printExprOnLevel(node.expression.expr, level + 1);
+            },
+        }
     }
 
     fn printExprOnLevel(node: *Expr, level: u8) !void {

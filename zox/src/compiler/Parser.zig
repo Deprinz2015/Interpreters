@@ -35,9 +35,37 @@ pub fn deinit(self: *Parser) void {
     self.alloc.deinit();
 }
 
-pub fn parse(self: *Parser) ?*ast.Expr {
+pub fn parse(self: *Parser) ?[]*ast.Stmt {
     self.current = self.scanner.nextToken(); // Priming the Parser
-    return self.expression() catch null;
+
+    var statements = std.ArrayList(*ast.Stmt).init(self.alloc.allocator());
+
+    while (!self.atEnd()) {
+        const stmt = self.statement() catch return null;
+        statements.append(stmt) catch return null;
+    }
+
+    return statements.toOwnedSlice() catch null;
+}
+
+fn statement(self: *Parser) Error!*ast.Stmt {
+    if (self.match(.PRINT)) {
+        return self.printStatement();
+    }
+
+    return self.expressionStatement();
+}
+
+fn printStatement(self: *Parser) Error!*ast.Stmt {
+    const expr = try self.expression();
+    try self.consume(.@";", "Expected ';' after expression");
+    return ast.Stmt.print(self.alloc.allocator(), expr) catch Error.CouldNotGenerateNode;
+}
+
+fn expressionStatement(self: *Parser) Error!*ast.Stmt {
+    const expr = try self.expression();
+    try self.consume(.@";", "Expected ';' after expression");
+    return ast.Stmt.expression(self.alloc.allocator(), expr) catch Error.CouldNotGenerateNode;
 }
 
 fn expression(self: *Parser) Error!*ast.Expr {
@@ -171,6 +199,28 @@ fn primary(self: *Parser) Error!*ast.Expr {
     return Error.MissingExpression;
 }
 
+fn sync(self: *Parser) Error!void {
+    self.advance();
+
+    while (!self.atEnd()) {
+        if (self.previous == .@";") {
+            return;
+        }
+
+        switch (self.current.type) {
+            .FUN,
+            .VAR,
+            .IF,
+            .FOR,
+            .WHILE,
+            .RETURN,
+            .PRINT,
+            => return,
+            else => self.advance(),
+        }
+    }
+}
+
 fn literal(self: *Parser, value: ast.Expr.Literal.Value) Error!*ast.Expr {
     return ast.Expr.literal(self.alloc.allocator(), self.previous.?, value) catch Error.CouldNotGenerateNode;
 }
@@ -208,6 +258,10 @@ fn consume(self: *Parser, t_type: Token.Type, comptime msg: []const u8) Error!vo
 
     printError(msg, .{});
     return Error.UnexpectedToken;
+}
+
+fn atEnd(self: *Parser) bool {
+    return self.check(.EOF);
 }
 
 fn currentLexeme(self: *Parser) []const u8 {
