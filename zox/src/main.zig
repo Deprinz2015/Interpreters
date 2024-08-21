@@ -31,7 +31,17 @@ pub fn main() !void {
 }
 
 fn compile(alloc: Allocator) void {
-    const source = "a = true and false or 5 > 9 or 8 == 9; { print 1; }";
+    // const source = "a = true and false or 5 > 9 or 8 == 9; print 1;";
+    const source =
+        \\ print a <= true;
+        \\ {
+        \\      print 1 == 1;
+        \\      {
+        \\          1 == 2;
+        \\          "hello";
+        \\      }
+        \\ }
+    ;
 
     var scanner = Scanner.init(source);
     var parser = Parser.init(alloc, &scanner);

@@ -129,7 +129,13 @@ fn string(self: *Scanner) Token {
 }
 
 fn identifier(self: *Scanner) Token {
-    while (!self.isAtEnd() and !std.ascii.isWhitespace(self.peek().?)) {
+    const allowed_chars = struct {
+        const a = std.ascii;
+        fn is_identifier_char(c: u8) bool {
+            return a.isAlphanumeric(c) or c == '_';
+        }
+    };
+    while (!self.isAtEnd() and allowed_chars.is_identifier_char(self.peek().?)) {
         self.advance();
     }
 

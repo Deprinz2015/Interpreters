@@ -76,7 +76,7 @@ fn statement(self: *Parser) Error!*ast.Stmt {
     if (self.match(.@"{")) {
         var statements = std.ArrayList(*ast.Stmt).init(self.alloc.allocator());
 
-        while (!self.atEnd()) {
+        while (!self.atEnd() and !self.check(.@"}")) {
             const maybe_stmt = self.decl();
             if (maybe_stmt) |stmt| {
                 statements.append(stmt) catch return Error.CouldNotGenerateNode;
