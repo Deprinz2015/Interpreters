@@ -20,6 +20,7 @@ scanner: *Scanner,
 current: Token,
 previous: ?Token,
 alloc: std.heap.ArenaAllocator,
+has_error: bool,
 
 pub fn init(alloc: Allocator, scanner: *Scanner) Parser {
     return .{
@@ -27,6 +28,7 @@ pub fn init(alloc: Allocator, scanner: *Scanner) Parser {
         .current = undefined,
         .previous = null,
         .alloc = std.heap.ArenaAllocator.init(alloc),
+        .has_error = false,
     };
 }
 
@@ -39,18 +41,51 @@ pub fn parse(self: *Parser) ?[]*ast.Stmt {
     self.current = self.scanner.nextToken(); // Priming the Parser
 
     var statements = std.ArrayList(*ast.Stmt).init(self.alloc.allocator());
+    defer statements.deinit();
 
     while (!self.atEnd()) {
-        const stmt = self.statement() catch return null;
-        statements.append(stmt) catch return null;
+        const maybe_stmt = self.decl();
+        if (maybe_stmt) |stmt| {
+            statements.append(stmt) catch return null;
+        }
     }
 
+    if (self.has_error) {
+        return null;
+    }
     return statements.toOwnedSlice() catch null;
+}
+
+fn decl(self: *Parser) ?*ast.Stmt {
+    return self.declaration() catch {
+        self.sync();
+        self.has_error = true;
+        return null;
+    };
+}
+
+fn declaration(self: *Parser) !*ast.Stmt {
+    return self.statement();
 }
 
 fn statement(self: *Parser) Error!*ast.Stmt {
     if (self.match(.PRINT)) {
         return self.printStatement();
+    }
+
+    if (self.match(.@"{")) {
+        var statements = std.ArrayList(*ast.Stmt).init(self.alloc.allocator());
+
+        while (!self.atEnd()) {
+            const maybe_stmt = self.decl();
+            if (maybe_stmt) |stmt| {
+                statements.append(stmt) catch return Error.CouldNotGenerateNode;
+            }
+        }
+
+        try self.consume(.@"}", "Expected '}}' after block");
+        const stmts = statements.toOwnedSlice() catch return Error.CouldNotGenerateNode;
+        return ast.Stmt.block(self.alloc.allocator(), stmts) catch Error.CouldNotGenerateNode;
     }
 
     return self.expressionStatement();
@@ -199,11 +234,11 @@ fn primary(self: *Parser) Error!*ast.Expr {
     return Error.MissingExpression;
 }
 
-fn sync(self: *Parser) Error!void {
+fn sync(self: *Parser) void {
     self.advance();
 
     while (!self.atEnd()) {
-        if (self.previous == .@";") {
+        if (self.previous != null and self.previous.?.type == .@";") {
             return;
         }
 

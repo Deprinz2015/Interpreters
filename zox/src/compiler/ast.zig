@@ -140,6 +140,7 @@ pub const Expr = union(enum) {
 pub const Stmt = union(enum) {
     expression: Expression,
     print: Print,
+    block: Block,
 
     pub fn expression(alloc: Allocator, expr: *Expr) !*Stmt {
         const node = try alloc.create(Stmt);
@@ -161,6 +162,16 @@ pub const Stmt = union(enum) {
         return node;
     }
 
+    pub fn block(alloc: Allocator, stmts: []*Stmt) !*Stmt {
+        const node = try alloc.create(Stmt);
+        node.* = .{
+            .block = .{
+                .stmts = stmts,
+            },
+        };
+        return node;
+    }
+
     pub const Expression = struct {
         expr: *Expr,
     };
@@ -169,10 +180,15 @@ pub const Stmt = union(enum) {
         expr: *Expr,
     };
 
+    pub const Block = struct {
+        stmts: []*Stmt,
+    };
+
     pub fn format(value: Stmt, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (value) {
             .expression => try writer.writeAll("Expression: expr"),
             .print => try writer.writeAll("Print: expr"),
+            .block => try writer.writeAll("Block: stmts[]"),
         }
     }
 };
@@ -203,6 +219,13 @@ pub const PrettyPrinter = struct {
                 try StdOut.writeAll("[expression - expr]");
                 try StdOut.writeByte('\n');
                 try printExprOnLevel(node.expression.expr, level + 1);
+            },
+            .block => {
+                try StdOut.writeAll("[block - stmts[]]");
+                try StdOut.writeByte('\n');
+                for (node.block.stmts) |stmt| {
+                    try printStmtOnLevel(stmt, level + 1);
+                }
             },
         }
     }
