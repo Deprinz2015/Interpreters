@@ -31,7 +31,6 @@ pub fn main() !void {
 }
 
 fn compile(alloc: Allocator) void {
-    // const source = "a = true and false or 5 > 9 or 8 == 9; print 1;";
     const source =
         \\ print a <= true;
         \\ {
@@ -41,6 +40,7 @@ fn compile(alloc: Allocator) void {
         \\          "hello";
         \\      }
         \\ }
+        \\ return a;
     ;
 
     var scanner = Scanner.init(source);
@@ -49,8 +49,9 @@ fn compile(alloc: Allocator) void {
 
     const ast = parser.parse();
     if (ast) |program| {
-        std.debug.print("Got a tree\n", .{});
         @import("compiler/ast.zig").PrettyPrinter.print(program) catch unreachable;
+    } else {
+        std.debug.print("No tree :(\n", .{});
     }
 }
 

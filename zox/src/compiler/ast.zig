@@ -140,6 +140,7 @@ pub const Expr = union(enum) {
 pub const Stmt = union(enum) {
     expression: Expression,
     print: Print,
+    return_stmt: Return,
     block: Block,
 
     pub fn expression(alloc: Allocator, expr: *Expr) !*Stmt {
@@ -162,6 +163,16 @@ pub const Stmt = union(enum) {
         return node;
     }
 
+    pub fn returnStmt(alloc: Allocator, expr: ?*Expr) !*Stmt {
+        const node = try alloc.create(Stmt);
+        node.* = .{
+            .return_stmt = .{
+                .expr = expr,
+            },
+        };
+        return node;
+    }
+
     pub fn block(alloc: Allocator, stmts: []*Stmt) !*Stmt {
         const node = try alloc.create(Stmt);
         node.* = .{
@@ -178,6 +189,10 @@ pub const Stmt = union(enum) {
 
     pub const Print = struct {
         expr: *Expr,
+    };
+
+    pub const Return = struct {
+        expr: ?*Expr,
     };
 
     pub const Block = struct {
@@ -210,15 +225,25 @@ pub const PrettyPrinter = struct {
 
         try StdOut.writeAll("-");
         switch (node.*) {
+            .expression => {
+                try StdOut.writeAll("[expression - expr]");
+                try StdOut.writeByte('\n');
+                try printExprOnLevel(node.expression.expr, level + 1);
+            },
             .print => {
                 try StdOut.writeAll("[print - expr]");
                 try StdOut.writeByte('\n');
                 try printExprOnLevel(node.print.expr, level + 1);
             },
-            .expression => {
-                try StdOut.writeAll("[expression - expr]");
-                try StdOut.writeByte('\n');
-                try printExprOnLevel(node.expression.expr, level + 1);
+            .return_stmt => {
+                if (node.return_stmt.expr) |expr| {
+                    try StdOut.writeAll("[return - expr]");
+                    try StdOut.writeByte('\n');
+                    try printExprOnLevel(expr, level + 1);
+                } else {
+                    try StdOut.writeAll("[return]");
+                    try StdOut.writeByte('\n');
+                }
             },
             .block => {
                 try StdOut.writeAll("[block - stmts[]]");

@@ -73,6 +73,10 @@ fn statement(self: *Parser) Error!*ast.Stmt {
         return self.printStatement();
     }
 
+    if (self.match(.RETURN)) {
+        return self.returnStatement();
+    }
+
     if (self.match(.@"{")) {
         var statements = std.ArrayList(*ast.Stmt).init(self.alloc.allocator());
 
@@ -95,6 +99,16 @@ fn printStatement(self: *Parser) Error!*ast.Stmt {
     const expr = try self.expression();
     try self.consume(.@";", "Expected ';' after expression");
     return ast.Stmt.print(self.alloc.allocator(), expr) catch Error.CouldNotGenerateNode;
+}
+
+fn returnStatement(self: *Parser) Error!*ast.Stmt {
+    if (self.match(.@";")) {
+        return ast.Stmt.returnStmt(self.alloc.allocator(), null) catch Error.CouldNotGenerateNode;
+    }
+
+    const expr = try self.expression();
+    try self.consume(.@";", "Expected ';' after expression");
+    return ast.Stmt.returnStmt(self.alloc.allocator(), expr) catch Error.CouldNotGenerateNode;
 }
 
 fn expressionStatement(self: *Parser) Error!*ast.Stmt {
