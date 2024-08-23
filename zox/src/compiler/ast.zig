@@ -143,6 +143,7 @@ pub const Stmt = union(enum) {
     return_stmt: Return,
     block: Block,
     while_stmt: While,
+    if_stmt: If,
 
     pub fn expression(alloc: Allocator, expr: *Expr) !*Stmt {
         const node = try alloc.create(Stmt);
@@ -195,6 +196,18 @@ pub const Stmt = union(enum) {
         return node;
     }
 
+    pub fn ifStmt(alloc: Allocator, condition: *Expr, statement: *Stmt, else_stmt: ?*Stmt) !*Stmt {
+        const node = try alloc.create(Stmt);
+        node.* = .{
+            .if_stmt = .{
+                .condition = condition,
+                .statement = statement,
+                .else_stmt = else_stmt,
+            },
+        };
+        return node;
+    }
+
     pub const Expression = struct {
         expr: *Expr,
     };
@@ -214,6 +227,12 @@ pub const Stmt = union(enum) {
     pub const While = struct {
         condition: *Expr,
         statement: *Stmt,
+    };
+
+    pub const If = struct {
+        condition: *Expr,
+        statement: *Stmt,
+        else_stmt: ?*Stmt,
     };
 
     pub fn format(value: Stmt, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
@@ -276,6 +295,19 @@ pub const PrettyPrinter = struct {
                 try StdOut.writeByte('\n');
                 try printExprOnLevel(node.while_stmt.condition, level + 1);
                 try printStmtOnLevel(node.while_stmt.statement, level + 1);
+            },
+            .if_stmt => {
+                if (node.if_stmt.else_stmt) |_| {
+                    try StdOut.writeAll("[if - condition statement statement]");
+                } else {
+                    try StdOut.writeAll("[if - condition statement]");
+                }
+                try StdOut.writeByte('\n');
+                try printExprOnLevel(node.if_stmt.condition, level + 1);
+                try printStmtOnLevel(node.if_stmt.statement, level + 1);
+                if (node.if_stmt.else_stmt) |else_stmt| {
+                    try printStmtOnLevel(else_stmt, level + 1);
+                }
             },
         }
     }

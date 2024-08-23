@@ -40,6 +40,8 @@ fn compile(alloc: Allocator) void {
         \\          "hello";
         \\      }
         \\ }
+        \\ if (true) print 1;
+        \\ if (false) {} else print 2;
         \\ return a;
     ;
 

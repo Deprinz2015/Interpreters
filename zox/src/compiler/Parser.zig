@@ -81,6 +81,10 @@ fn statement(self: *Parser) Error!*ast.Stmt {
         return self.whileStatement();
     }
 
+    if (self.match(.IF)) {
+        return self.ifStatement();
+    }
+
     if (self.match(.@"{")) {
         var statements = std.ArrayList(*ast.Stmt).init(self.alloc.allocator());
 
@@ -121,6 +125,18 @@ fn whileStatement(self: *Parser) Error!*ast.Stmt {
     try self.consume(.@")", "Expected ')' after while condition");
     const stmt = try self.statement();
     return ast.Stmt.whileStmt(self.alloc.allocator(), condition, stmt) catch Error.CouldNotGenerateNode;
+}
+
+fn ifStatement(self: *Parser) Error!*ast.Stmt {
+    try self.consume(.@"(", "Expected '(' after if keyword");
+    const condition = try self.expression();
+    try self.consume(.@")", "Expected ')' after if condition");
+    const stmt = try self.statement();
+    if (self.match(.ELSE)) {
+        const else_stmt = try self.statement();
+        return ast.Stmt.ifStmt(self.alloc.allocator(), condition, stmt, else_stmt) catch Error.CouldNotGenerateNode;
+    }
+    return ast.Stmt.ifStmt(self.alloc.allocator(), condition, stmt, null) catch Error.CouldNotGenerateNode;
 }
 
 fn expressionStatement(self: *Parser) Error!*ast.Stmt {
