@@ -142,6 +142,7 @@ pub const Stmt = union(enum) {
     print: Print,
     return_stmt: Return,
     block: Block,
+    while_stmt: While,
 
     pub fn expression(alloc: Allocator, expr: *Expr) !*Stmt {
         const node = try alloc.create(Stmt);
@@ -183,6 +184,17 @@ pub const Stmt = union(enum) {
         return node;
     }
 
+    pub fn whileStmt(alloc: Allocator, condition: *Expr, statement: *Stmt) !*Stmt {
+        const node = try alloc.create(Stmt);
+        node.* = .{
+            .while_stmt = .{
+                .condition = condition,
+                .statement = statement,
+            },
+        };
+        return node;
+    }
+
     pub const Expression = struct {
         expr: *Expr,
     };
@@ -199,11 +211,18 @@ pub const Stmt = union(enum) {
         stmts: []*Stmt,
     };
 
+    pub const While = struct {
+        condition: *Expr,
+        statement: *Stmt,
+    };
+
     pub fn format(value: Stmt, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (value) {
             .expression => try writer.writeAll("Expression: expr"),
             .print => try writer.writeAll("Print: expr"),
             .block => try writer.writeAll("Block: stmts[]"),
+            .while_stmt => try writer.writeAll("While: expr stmt"),
+            .return_stmt => try writer.writeAll("Return: ?expr"),
         }
     }
 };
@@ -251,6 +270,12 @@ pub const PrettyPrinter = struct {
                 for (node.block.stmts) |stmt| {
                     try printStmtOnLevel(stmt, level + 1);
                 }
+            },
+            .while_stmt => {
+                try StdOut.writeAll("[while - condition statement]");
+                try StdOut.writeByte('\n');
+                try printExprOnLevel(node.while_stmt.condition, level + 1);
+                try printStmtOnLevel(node.while_stmt.statement, level + 1);
             },
         }
     }

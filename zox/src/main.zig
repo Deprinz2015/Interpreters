@@ -33,7 +33,7 @@ pub fn main() !void {
 fn compile(alloc: Allocator) void {
     const source =
         \\ print a <= true;
-        \\ {
+        \\ while (1 == 1) {
         \\      print 1 == 1;
         \\      {
         \\          1 == 2;
