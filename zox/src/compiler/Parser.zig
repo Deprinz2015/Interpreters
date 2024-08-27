@@ -65,7 +65,27 @@ fn decl(self: *Parser) ?*ast.Stmt {
 }
 
 fn declaration(self: *Parser) !*ast.Stmt {
+    if (self.match(.VAR)) {
+        return self.varDeclaration();
+    }
+
     return self.statement();
+}
+
+fn varDeclaration(self: *Parser) !*ast.Stmt {
+    try self.consume(.IDENTIFIER, "Expect variable name");
+    const name = self.previous.?;
+
+    const initializer: ?*ast.Expr = expr: {
+        if (self.match(.@"=")) {
+            break :expr try self.expression();
+        }
+        break :expr null;
+    };
+
+    try self.consume(.@";", "Expect ';' after variable declaration");
+
+    return ast.Stmt.varStmt(self.alloc.allocator(), name, initializer) catch Error.CouldNotGenerateNode;
 }
 
 fn statement(self: *Parser) Error!*ast.Stmt {

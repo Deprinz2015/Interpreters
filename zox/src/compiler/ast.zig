@@ -144,6 +144,7 @@ pub const Stmt = union(enum) {
     block: Block,
     while_stmt: While,
     if_stmt: If,
+    var_stmt: Var,
 
     pub fn expression(alloc: Allocator, expr: *Expr) !*Stmt {
         const node = try alloc.create(Stmt);
@@ -208,6 +209,17 @@ pub const Stmt = union(enum) {
         return node;
     }
 
+    pub fn varStmt(alloc: Allocator, name: Token, initializer: ?*Expr) !*Stmt {
+        const node = try alloc.create(Stmt);
+        node.* = .{
+            .var_stmt = .{
+                .name = name,
+                .initializer = initializer,
+            },
+        };
+        return node;
+    }
+
     pub const Expression = struct {
         expr: *Expr,
     };
@@ -233,6 +245,11 @@ pub const Stmt = union(enum) {
         condition: *Expr,
         statement: *Stmt,
         else_stmt: ?*Stmt,
+    };
+
+    pub const Var = struct {
+        name: Token,
+        initializer: ?*Expr,
     };
 
     pub fn format(value: Stmt, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
@@ -307,6 +324,13 @@ pub const PrettyPrinter = struct {
                 try printStmtOnLevel(node.if_stmt.statement, level + 1);
                 if (node.if_stmt.else_stmt) |else_stmt| {
                     try printStmtOnLevel(else_stmt, level + 1);
+                }
+            },
+            .var_stmt => {
+                try StdOut.print("[var - '{s}' initializer]", .{node.var_stmt.name.lexeme});
+                try StdOut.writeByte('\n');
+                if (node.var_stmt.initializer) |expr| {
+                    try printExprOnLevel(expr, level + 1);
                 }
             },
         }
