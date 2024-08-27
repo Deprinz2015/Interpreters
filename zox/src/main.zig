@@ -43,6 +43,9 @@ fn compile(alloc: Allocator) void {
         \\ }
         \\ if (true) print 1;
         \\ if (false) {} else print 2;
+        \\ for (var i = 0; i < 5; i = i + 1) {
+        \\      print a;
+        \\ }
         \\ return a;
     ;
 

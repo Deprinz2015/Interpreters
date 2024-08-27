@@ -10,11 +10,10 @@ pub const Expr = union(enum) {
     variable: Variable,
     assignment: Assignment,
 
-    pub fn literal(alloc: Allocator, token: Token, value: Literal.Value) !*Expr {
+    pub fn literal(alloc: Allocator, value: Literal.Value) !*Expr {
         const node = try alloc.create(Expr);
         node.* = .{
             .literal = .{
-                .token = token,
                 .value = value,
             },
         };
@@ -83,7 +82,6 @@ pub const Expr = union(enum) {
     }
 
     pub const Literal = struct {
-        token: Token,
         value: Value,
 
         pub const Value = union(enum) {

@@ -105,6 +105,10 @@ fn statement(self: *Parser) Error!*ast.Stmt {
         return self.ifStatement();
     }
 
+    if (self.match(.FOR)) {
+        return self.forStatement();
+    }
+
     if (self.match(.@"{")) {
         var statements = std.ArrayList(*ast.Stmt).init(self.alloc.allocator());
 
@@ -121,6 +125,58 @@ fn statement(self: *Parser) Error!*ast.Stmt {
     }
 
     return self.expressionStatement();
+}
+
+fn forStatement(self: *Parser) Error!*ast.Stmt {
+    try self.consume(.@"(", "Expected '(' after for keyword");
+
+    const initializer: ?*ast.Stmt = init: {
+        if (self.match(.@";")) {
+            break :init null;
+        }
+
+        if (self.match(.VAR)) {
+            break :init try self.varDeclaration();
+        }
+
+        break :init try self.expressionStatement();
+    };
+
+    const condition: *ast.Expr = condition: {
+        if (self.check(.@";")) {
+            break :condition ast.Expr.literal(self.alloc.allocator(), .{ .boolean = true }) catch return Error.CouldNotGenerateNode;
+        }
+        break :condition try self.expression();
+    };
+
+    try self.consume(.@";", "Expected ';' after loop condition");
+
+    const increment: ?*ast.Stmt = inc: {
+        if (self.check(.@")")) {
+            break :inc null;
+        }
+        const expr = try self.expression();
+        break :inc ast.Stmt.expression(self.alloc.allocator(), expr) catch return Error.CouldNotGenerateNode;
+    };
+
+    try self.consume(.@")", "Expected ')' after increment");
+    const body = try self.statement();
+
+    if (increment) |inc_expr| {
+        body.block.stmts = self.alloc.allocator().realloc(body.block.stmts, body.block.stmts.len + 1) catch return Error.CouldNotGenerateNode;
+        body.block.stmts[body.block.stmts.len - 1] = inc_expr;
+    }
+
+    const while_stmt = ast.Stmt.whileStmt(self.alloc.allocator(), condition, body) catch return Error.CouldNotGenerateNode;
+
+    if (initializer) |init_stmt| {
+        const stmts = self.alloc.allocator().alloc(*ast.Stmt, 2) catch return Error.CouldNotGenerateNode;
+        stmts[0] = init_stmt;
+        stmts[1] = while_stmt;
+        return ast.Stmt.block(self.alloc.allocator(), stmts) catch Error.CouldNotGenerateNode;
+    }
+
+    return while_stmt;
 }
 
 fn printStatement(self: *Parser) Error!*ast.Stmt {
@@ -319,7 +375,7 @@ fn sync(self: *Parser) void {
 }
 
 fn literal(self: *Parser, value: ast.Expr.Literal.Value) Error!*ast.Expr {
-    return ast.Expr.literal(self.alloc.allocator(), self.previous.?, value) catch Error.CouldNotGenerateNode;
+    return ast.Expr.literal(self.alloc.allocator(), value) catch Error.CouldNotGenerateNode;
 }
 
 fn binary(self: *Parser, op: Token, left: *ast.Expr, right: *ast.Expr) Error!*ast.Expr {
