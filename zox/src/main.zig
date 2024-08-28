@@ -5,7 +5,13 @@ const Scanner = @import("compiler/Scanner.zig");
 const Parser = @import("compiler/Parser.zig");
 const Token = @import("compiler/Token.zig");
 
-pub fn main() !void {
+const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
+
+const Error = error{
+    FileError,
+};
+
+pub fn main() !u8 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(gpa.deinit() == .ok);
     const alloc = gpa.allocator();
@@ -21,33 +27,51 @@ pub fn main() !void {
     try zli.addArgument("input", "Either the .lox or .zox file to take in");
 
     if (try zli.option(bool, "help")) {
-        _ = try zli.help(std.io.getStdOut().writer(), 0);
-        return;
+        return try zli.help(std.io.getStdOut().writer(), 0);
     }
 
-    // TODO: Hook up the correct options and CLI Logic
+    const input = zli.argument([]const u8, "input") catch return try zli.help(std.io.getStdOut().writer(), 64);
 
-    compile(alloc);
+    if (try zli.option(bool, "compile")) {
+        try compile(alloc, input);
+        // TODO: Save bytecode to file or execute directly
+        if (try zli.option(bool, "run")) {
+            // TODO: execute bytecode
+        } else {
+            // TODO: save bytecode to .zox file
+        }
+    } else {
+        // TODO: Read bytecode from file
+        try run(alloc, "");
+    }
+
+    return 0;
 }
 
-fn compile(alloc: Allocator) void {
-    const source =
-        \\ var a = 2;
-        \\ print a <= 5;
-        \\ while (1 == 1) {
-        \\      print 1 == 1;
-        \\      {
-        \\          1 == 2;
-        \\          "hello";
-        \\      }
-        \\ }
-        \\ if (true) print 1;
-        \\ if (false) {} else print 2;
-        \\ for (var i = 0; i < 5; i = i + 1) {
-        \\      print a;
-        \\ }
-        \\ return a;
-    ;
+fn readFile(alloc: Allocator, path: []const u8) ![]const u8 {
+    const file = std.fs.cwd().openFile(path, .{}) catch {
+        std.io.getStdErr().writer().print("Could not open file '{s}'\n", .{path}) catch {};
+        return Error.FileError;
+    };
+    defer file.close();
+
+    const raw_content = file.readToEndAlloc(alloc, MAX_FILE_SIZE) catch |err| switch (err) {
+        error.FileTooBig => {
+            try std.io.getStdErr().writer().print("File '{s}' is to large. Maximum size is {d} bytes.\n", .{ path, MAX_FILE_SIZE });
+            return err;
+        },
+        else => {
+            try std.io.getStdErr().writer().print("Could not read file '{s}'.\n", .{path});
+            return Error.FileError;
+        },
+    };
+
+    return raw_content;
+}
+
+fn compile(alloc: Allocator, input: []const u8) !void {
+    const source = try readFile(alloc, input);
+    defer alloc.free(source);
 
     var scanner = Scanner.init(source);
     var parser = Parser.init(alloc, &scanner);
@@ -61,4 +85,9 @@ fn compile(alloc: Allocator) void {
     }
 }
 
-fn run() void {}
+fn run(alloc: Allocator, bytecode: []const u8) !void {
+    // TODO: Execute bytecode
+    _ = alloc;
+    _ = bytecode;
+    @panic("Not supported yet");
+}
