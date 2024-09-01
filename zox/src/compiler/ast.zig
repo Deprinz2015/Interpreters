@@ -10,7 +10,7 @@ pub const Expr = union(enum) {
     variable: Variable,
     assignment: Assignment,
 
-    pub fn literal(alloc: Allocator, value: Literal.Value) !*Expr {
+    pub fn newLiteral(alloc: Allocator, value: Literal.Value) !*Expr {
         const node = try alloc.create(Expr);
         node.* = .{
             .literal = .{
@@ -21,7 +21,7 @@ pub const Expr = union(enum) {
         return node;
     }
 
-    pub fn unary(alloc: Allocator, op: Token, expr: *Expr) !*Expr {
+    pub fn newUnary(alloc: Allocator, op: Token, expr: *Expr) !*Expr {
         const node = try alloc.create(Expr);
         node.* = .{
             .unary = .{
@@ -33,7 +33,7 @@ pub const Expr = union(enum) {
         return node;
     }
 
-    pub fn binary(alloc: Allocator, op: Token, left: *Expr, right: *Expr) !*Expr {
+    pub fn newBinary(alloc: Allocator, op: Token, left: *Expr, right: *Expr) !*Expr {
         const node = try alloc.create(Expr);
         node.* = .{
             .binary = .{
@@ -46,7 +46,7 @@ pub const Expr = union(enum) {
         return node;
     }
 
-    pub fn logical(alloc: Allocator, op: Token, left: *Expr, right: *Expr) !*Expr {
+    pub fn newLogical(alloc: Allocator, op: Token, left: *Expr, right: *Expr) !*Expr {
         const node = try alloc.create(Expr);
         node.* = .{
             .logical = .{
@@ -59,7 +59,7 @@ pub const Expr = union(enum) {
         return node;
     }
 
-    pub fn variable(alloc: Allocator, name: Token) !*Expr {
+    pub fn newVariable(alloc: Allocator, name: Token) !*Expr {
         const node = try alloc.create(Expr);
         node.* = .{
             .variable = .{
@@ -69,7 +69,7 @@ pub const Expr = union(enum) {
         return node;
     }
 
-    pub fn assignment(alloc: Allocator, name: Token, value: *Expr) !*Expr {
+    pub fn newAssignment(alloc: Allocator, name: Token, value: *Expr) !*Expr {
         const node = try alloc.create(Expr);
         node.* = .{
             .assignment = .{
@@ -144,7 +144,7 @@ pub const Stmt = union(enum) {
     if_stmt: If,
     var_stmt: Var,
 
-    pub fn expression(alloc: Allocator, expr: *Expr) !*Stmt {
+    pub fn newExpression(alloc: Allocator, expr: *Expr) !*Stmt {
         const node = try alloc.create(Stmt);
         node.* = .{
             .expression = .{
@@ -154,7 +154,7 @@ pub const Stmt = union(enum) {
         return node;
     }
 
-    pub fn print(alloc: Allocator, expr: *Expr) !*Stmt {
+    pub fn newPrint(alloc: Allocator, expr: *Expr) !*Stmt {
         const node = try alloc.create(Stmt);
         node.* = .{
             .print = .{
@@ -164,7 +164,7 @@ pub const Stmt = union(enum) {
         return node;
     }
 
-    pub fn returnStmt(alloc: Allocator, expr: ?*Expr) !*Stmt {
+    pub fn newReturn(alloc: Allocator, expr: ?*Expr) !*Stmt {
         const node = try alloc.create(Stmt);
         node.* = .{
             .return_stmt = .{
@@ -174,7 +174,7 @@ pub const Stmt = union(enum) {
         return node;
     }
 
-    pub fn block(alloc: Allocator, stmts: []*Stmt) !*Stmt {
+    pub fn newBlock(alloc: Allocator, stmts: []*Stmt) !*Stmt {
         const node = try alloc.create(Stmt);
         node.* = .{
             .block = .{
@@ -184,7 +184,7 @@ pub const Stmt = union(enum) {
         return node;
     }
 
-    pub fn whileStmt(alloc: Allocator, condition: *Expr, statement: *Stmt) !*Stmt {
+    pub fn newWhile(alloc: Allocator, condition: *Expr, statement: *Stmt) !*Stmt {
         const node = try alloc.create(Stmt);
         node.* = .{
             .while_stmt = .{
@@ -195,7 +195,7 @@ pub const Stmt = union(enum) {
         return node;
     }
 
-    pub fn ifStmt(alloc: Allocator, condition: *Expr, statement: *Stmt, else_stmt: ?*Stmt) !*Stmt {
+    pub fn newIf(alloc: Allocator, condition: *Expr, statement: *Stmt, else_stmt: ?*Stmt) !*Stmt {
         const node = try alloc.create(Stmt);
         node.* = .{
             .if_stmt = .{
@@ -207,7 +207,7 @@ pub const Stmt = union(enum) {
         return node;
     }
 
-    pub fn varStmt(alloc: Allocator, name: Token, initializer: ?*Expr) !*Stmt {
+    pub fn newVar(alloc: Allocator, name: Token, initializer: ?*Expr) !*Stmt {
         const node = try alloc.create(Stmt);
         node.* = .{
             .var_stmt = .{

@@ -85,7 +85,7 @@ fn varDeclaration(self: *Parser) !*ast.Stmt {
 
     try self.consume(.@";", "Expect ';' after variable declaration");
 
-    return ast.Stmt.varStmt(self.alloc.allocator(), name, initializer) catch Error.CouldNotGenerateNode;
+    return ast.Stmt.newVar(self.alloc.allocator(), name, initializer) catch Error.CouldNotGenerateNode;
 }
 
 fn statement(self: *Parser) Error!*ast.Stmt {
@@ -121,7 +121,7 @@ fn statement(self: *Parser) Error!*ast.Stmt {
 
         try self.consume(.@"}", "Expected '}}' after block");
         const stmts = statements.toOwnedSlice() catch return Error.CouldNotGenerateNode;
-        return ast.Stmt.block(self.alloc.allocator(), stmts) catch Error.CouldNotGenerateNode;
+        return ast.Stmt.newBlock(self.alloc.allocator(), stmts) catch Error.CouldNotGenerateNode;
     }
 
     return self.expressionStatement();
@@ -144,7 +144,7 @@ fn forStatement(self: *Parser) Error!*ast.Stmt {
 
     const condition: *ast.Expr = condition: {
         if (self.check(.@";")) {
-            break :condition ast.Expr.literal(self.alloc.allocator(), .{ .boolean = true }) catch return Error.CouldNotGenerateNode;
+            break :condition ast.Expr.newLiteral(self.alloc.allocator(), .{ .boolean = true }) catch return Error.CouldNotGenerateNode;
         }
         break :condition try self.expression();
     };
@@ -156,7 +156,7 @@ fn forStatement(self: *Parser) Error!*ast.Stmt {
             break :inc null;
         }
         const expr = try self.expression();
-        break :inc ast.Stmt.expression(self.alloc.allocator(), expr) catch return Error.CouldNotGenerateNode;
+        break :inc ast.Stmt.newExpression(self.alloc.allocator(), expr) catch return Error.CouldNotGenerateNode;
     };
 
     try self.consume(.@")", "Expected ')' after increment");
@@ -167,13 +167,13 @@ fn forStatement(self: *Parser) Error!*ast.Stmt {
         body.block.stmts[body.block.stmts.len - 1] = inc_expr;
     }
 
-    const while_stmt = ast.Stmt.whileStmt(self.alloc.allocator(), condition, body) catch return Error.CouldNotGenerateNode;
+    const while_stmt = ast.Stmt.newWhile(self.alloc.allocator(), condition, body) catch return Error.CouldNotGenerateNode;
 
     if (initializer) |init_stmt| {
         const stmts = self.alloc.allocator().alloc(*ast.Stmt, 2) catch return Error.CouldNotGenerateNode;
         stmts[0] = init_stmt;
         stmts[1] = while_stmt;
-        return ast.Stmt.block(self.alloc.allocator(), stmts) catch Error.CouldNotGenerateNode;
+        return ast.Stmt.newBlock(self.alloc.allocator(), stmts) catch Error.CouldNotGenerateNode;
     }
 
     return while_stmt;
@@ -182,17 +182,17 @@ fn forStatement(self: *Parser) Error!*ast.Stmt {
 fn printStatement(self: *Parser) Error!*ast.Stmt {
     const expr = try self.expression();
     try self.consume(.@";", "Expected ';' after expression");
-    return ast.Stmt.print(self.alloc.allocator(), expr) catch Error.CouldNotGenerateNode;
+    return ast.Stmt.newPrint(self.alloc.allocator(), expr) catch Error.CouldNotGenerateNode;
 }
 
 fn returnStatement(self: *Parser) Error!*ast.Stmt {
     if (self.match(.@";")) {
-        return ast.Stmt.returnStmt(self.alloc.allocator(), null) catch Error.CouldNotGenerateNode;
+        return ast.Stmt.newReturn(self.alloc.allocator(), null) catch Error.CouldNotGenerateNode;
     }
 
     const expr = try self.expression();
     try self.consume(.@";", "Expected ';' after expression");
-    return ast.Stmt.returnStmt(self.alloc.allocator(), expr) catch Error.CouldNotGenerateNode;
+    return ast.Stmt.newReturn(self.alloc.allocator(), expr) catch Error.CouldNotGenerateNode;
 }
 
 fn whileStatement(self: *Parser) Error!*ast.Stmt {
@@ -200,7 +200,7 @@ fn whileStatement(self: *Parser) Error!*ast.Stmt {
     const condition = try self.expression();
     try self.consume(.@")", "Expected ')' after while condition");
     const stmt = try self.statement();
-    return ast.Stmt.whileStmt(self.alloc.allocator(), condition, stmt) catch Error.CouldNotGenerateNode;
+    return ast.Stmt.newWhile(self.alloc.allocator(), condition, stmt) catch Error.CouldNotGenerateNode;
 }
 
 fn ifStatement(self: *Parser) Error!*ast.Stmt {
@@ -210,15 +210,15 @@ fn ifStatement(self: *Parser) Error!*ast.Stmt {
     const stmt = try self.statement();
     if (self.match(.ELSE)) {
         const else_stmt = try self.statement();
-        return ast.Stmt.ifStmt(self.alloc.allocator(), condition, stmt, else_stmt) catch Error.CouldNotGenerateNode;
+        return ast.Stmt.newIf(self.alloc.allocator(), condition, stmt, else_stmt) catch Error.CouldNotGenerateNode;
     }
-    return ast.Stmt.ifStmt(self.alloc.allocator(), condition, stmt, null) catch Error.CouldNotGenerateNode;
+    return ast.Stmt.newIf(self.alloc.allocator(), condition, stmt, null) catch Error.CouldNotGenerateNode;
 }
 
 fn expressionStatement(self: *Parser) Error!*ast.Stmt {
     const expr = try self.expression();
     try self.consume(.@";", "Expected ';' after expression");
-    return ast.Stmt.expression(self.alloc.allocator(), expr) catch Error.CouldNotGenerateNode;
+    return ast.Stmt.newExpression(self.alloc.allocator(), expr) catch Error.CouldNotGenerateNode;
 }
 
 fn expression(self: *Parser) Error!*ast.Expr {
@@ -230,7 +230,7 @@ fn assignment(self: *Parser) Error!*ast.Expr {
     if (self.match(.@"=")) {
         if (expr.* == .variable) {
             const value = try self.expression();
-            return ast.Expr.assignment(self.alloc.allocator(), expr.variable.name, value) catch Error.CouldNotGenerateNode;
+            return ast.Expr.newAssignment(self.alloc.allocator(), expr.variable.name, value) catch Error.CouldNotGenerateNode;
         }
 
         printError("Invalid assignment target", .{});
@@ -307,7 +307,7 @@ fn factor(self: *Parser) Error!*ast.Expr {
 
 fn unary(self: *Parser) Error!*ast.Expr {
     if (self.match(.@"-") or self.match(.@"!")) {
-        return ast.Expr.unary(self.alloc.allocator(), self.previous.?, try self.unary()) catch Error.CouldNotGenerateNode;
+        return ast.Expr.newUnary(self.alloc.allocator(), self.previous.?, try self.unary()) catch Error.CouldNotGenerateNode;
     }
 
     return self.primary();
@@ -340,7 +340,7 @@ fn primary(self: *Parser) Error!*ast.Expr {
         return self.literal(.{ .number = number });
     }
     if (self.match(.IDENTIFIER)) {
-        return ast.Expr.variable(self.alloc.allocator(), self.previous.?) catch Error.CouldNotGenerateNode;
+        return ast.Expr.newVariable(self.alloc.allocator(), self.previous.?) catch Error.CouldNotGenerateNode;
     }
     if (self.match(.@"(")) {
         const expr = try self.expression();
@@ -375,15 +375,15 @@ fn sync(self: *Parser) void {
 }
 
 fn literal(self: *Parser, value: ast.Expr.Literal.Value) Error!*ast.Expr {
-    return ast.Expr.literal(self.alloc.allocator(), value) catch Error.CouldNotGenerateNode;
+    return ast.Expr.newLiteral(self.alloc.allocator(), value) catch Error.CouldNotGenerateNode;
 }
 
 fn binary(self: *Parser, op: Token, left: *ast.Expr, right: *ast.Expr) Error!*ast.Expr {
-    return ast.Expr.binary(self.alloc.allocator(), op, left, right) catch return Error.CouldNotGenerateNode;
+    return ast.Expr.newBinary(self.alloc.allocator(), op, left, right) catch return Error.CouldNotGenerateNode;
 }
 
 fn logical(self: *Parser, op: Token, left: *ast.Expr, right: *ast.Expr) Error!*ast.Expr {
-    return ast.Expr.logical(self.alloc.allocator(), op, left, right) catch return Error.CouldNotGenerateNode;
+    return ast.Expr.newLogical(self.alloc.allocator(), op, left, right) catch return Error.CouldNotGenerateNode;
 }
 
 fn advance(self: *Parser) void {

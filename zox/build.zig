@@ -12,7 +12,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe.root_module.addImport("Zli", zli.module("Zli"));
+    exe.root_module.addImport("zli", zli.module("zli"));
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

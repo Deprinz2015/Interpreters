@@ -1,6 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Zli = @import("Zli");
+const zli = @import("zli");
 const Scanner = @import("compiler/Scanner.zig");
 const Parser = @import("compiler/Parser.zig");
 const Token = @import("compiler/Token.zig");
@@ -16,26 +16,34 @@ pub fn main() !u8 {
     defer std.debug.assert(gpa.deinit() == .ok);
     const alloc = gpa.allocator();
 
-    var zli = Zli.init(alloc);
-    defer zli.deinit();
+    var parser = try zli.Parser(.{
+        .options = .{
+            .help = .{ .type = bool, .short = 'h', .default = false, .desc = "Show this Help message" },
+            .compile = .{ .type = bool, .short = 'c', .default = false, .desc = "Compile a .lox file into a .zox file" },
+            .run = .{ .type = bool, .short = 'r', .default = false, .desc = "Run a .zox file. Only needed in combination with --compile" },
+            .output = .{ .type = []const u8, .short = 'o', .desc = "Alternative file path to output the compilation output" },
+        },
+        .arguments = .{
+            .input = .{ .type = []const u8, .pos = 1, .desc = "Alternative file path to output the compilation output" },
+        },
+    }).init(alloc);
+    try parser.parse();
+    defer parser.deinit();
 
-    try zli.addOption("help", 'h', "Show this Help message");
-    try zli.addOption("compile", 'c', "Compile a .lox file into a .zox file");
-    try zli.addOption("run", 'r', "Run a .zox file. Only needed in combination with --compile");
-    try zli.addOption("output", 'o', "Alternative file path to output the compilation output");
-
-    try zli.addArgument("input", "Either the .lox or .zox file to take in");
-
-    if (try zli.option(bool, "help")) {
-        return try zli.help(std.io.getStdOut().writer(), 0);
+    if (parser.options.help) {
+        try parser.help(std.io.getStdOut().writer());
+        return 0;
     }
 
-    const input = zli.argument([]const u8, "input") catch return try zli.help(std.io.getStdOut().writer(), 64);
+    const input = parser.arguments.input orelse {
+        try parser.help(std.io.getStdOut().writer());
+        return 64;
+    };
 
-    if (try zli.option(bool, "compile")) {
+    if (parser.options.compile) {
         try compile(alloc, input);
         // TODO: Save bytecode to file or execute directly
-        if (try zli.option(bool, "run")) {
+        if (parser.options.run) {
             // TODO: execute bytecode
         } else {
             // TODO: save bytecode to .zox file
