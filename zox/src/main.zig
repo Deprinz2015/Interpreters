@@ -18,9 +18,10 @@ pub fn main() !u8 {
 
     var parser = try zli.Parser(.{
         .options = .{
-            .help = .{ .type = bool, .short = 'h', .default = false, .desc = "Show this Help message" },
-            .compile = .{ .type = bool, .short = 'c', .default = false, .desc = "Compile a .lox file into a .zox file" },
-            .run = .{ .type = bool, .short = 'r', .default = false, .desc = "Run a .zox file. Only needed in combination with --compile" },
+            .help = .{ .type = bool, .short = 'h', .desc = "Show this Help message" },
+            .compile = .{ .type = bool, .short = 'c', .desc = "Compile a .lox file into a .zox file" },
+            .printAst = .{ .type = bool, .desc = "Print the generated AST before compiling to bytecode" },
+            .run = .{ .type = bool, .short = 'r', .desc = "Run a .zox file. Only needed in combination with --compile" },
             .output = .{ .type = []const u8, .short = 'o', .desc = "Alternative file path to output the compilation output" },
         },
         .arguments = .{
@@ -41,7 +42,7 @@ pub fn main() !u8 {
     };
 
     if (parser.options.compile) {
-        try compile(alloc, input);
+        try compile(alloc, input, parser.options.printAst);
         // TODO: Save bytecode to file or execute directly
         if (parser.options.run) {
             // TODO: execute bytecode
@@ -77,7 +78,7 @@ fn readFile(alloc: Allocator, path: []const u8) ![]const u8 {
     return raw_content;
 }
 
-fn compile(alloc: Allocator, input: []const u8) !void {
+fn compile(alloc: Allocator, input: []const u8, print_ast: bool) !void {
     const source = try readFile(alloc, input);
     defer alloc.free(source);
 
@@ -86,8 +87,12 @@ fn compile(alloc: Allocator, input: []const u8) !void {
     defer parser.deinit();
 
     const ast = parser.parse();
+
     if (ast) |program| {
-        @import("compiler/ast.zig").PrettyPrinter.print(program) catch unreachable;
+        if (print_ast) {
+            @import("compiler/ast.zig").PrettyPrinter.print(program) catch unreachable;
+        }
+        std.debug.print("Compiling to bytecode...\n", .{});
     } else {
         std.debug.print("No tree :(\n", .{});
     }
