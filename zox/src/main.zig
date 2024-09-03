@@ -1,14 +1,18 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const zli = @import("zli");
+
 const Scanner = @import("compiler/Scanner.zig");
 const Parser = @import("compiler/Parser.zig");
 const Token = @import("compiler/Token.zig");
+
+const opcode = @import("bytecode/opcode.zig");
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
 
 const Error = error{
     FileError,
+    SyntaxError,
 };
 
 pub fn main() !u8 {
@@ -21,6 +25,7 @@ pub fn main() !u8 {
             .help = .{ .type = bool, .short = 'h', .desc = "Show this Help message" },
             .compile = .{ .type = bool, .short = 'c', .desc = "Compile a .lox file into a .zox file" },
             .printAst = .{ .type = bool, .desc = "Print the generated AST before compiling to bytecode" },
+            .printBytecode = .{ .type = bool, .desc = "Print the compiled Bytecode" },
             .run = .{ .type = bool, .short = 'r', .desc = "Run a .zox file. Only needed in combination with --compile" },
             .output = .{ .type = []const u8, .short = 'o', .desc = "Alternative file path to output the compilation output" },
         },
@@ -42,8 +47,13 @@ pub fn main() !u8 {
     };
 
     if (parser.options.compile) {
-        try compile(alloc, input, parser.options.printAst);
-        // TODO: Save bytecode to file or execute directly
+        const bytecode = try compile(alloc, input, parser.options.printAst);
+        defer alloc.free(bytecode);
+
+        if (parser.options.printBytecode) {
+            try @import("debug/ByteCode.zig").print(bytecode);
+        }
+
         if (parser.options.run) {
             // TODO: execute bytecode
         } else {
@@ -78,7 +88,7 @@ fn readFile(alloc: Allocator, path: []const u8) ![]const u8 {
     return raw_content;
 }
 
-fn compile(alloc: Allocator, input: []const u8, print_ast: bool) !void {
+fn compile(alloc: Allocator, input: []const u8, print_ast: bool) ![]u8 {
     const source = try readFile(alloc, input);
     defer alloc.free(source);
 
@@ -86,16 +96,15 @@ fn compile(alloc: Allocator, input: []const u8, print_ast: bool) !void {
     var parser = Parser.init(alloc, &scanner);
     defer parser.deinit();
 
-    const ast = parser.parse();
+    const program = parser.parse() orelse {
+        return Error.SyntaxError;
+    };
 
-    if (ast) |program| {
-        if (print_ast) {
-            @import("compiler/ast.zig").PrettyPrinter.print(program) catch unreachable;
-        }
-        std.debug.print("Compiling to bytecode...\n", .{});
-    } else {
-        std.debug.print("No tree :(\n", .{});
+    if (print_ast) {
+        @import("debug/PrettyPrinter.zig").print(program) catch unreachable;
     }
+
+    return opcode.translate(program, alloc);
 }
 
 fn run(alloc: Allocator, bytecode: []const u8) !void {
