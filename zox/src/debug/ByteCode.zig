@@ -24,6 +24,8 @@ pub fn print(program: []u8) !void {
             .NIL => simpleInstruction("OP_NIL"),
             .TRUE => simpleInstruction("OP_TRUE"),
             .FALSE => simpleInstruction("OP_FALSE"),
+            .NOT => simpleInstruction("OP_NOT"),
+            .NEGATE => simpleInstruction("OP_NEGATE"),
         };
     }
 }

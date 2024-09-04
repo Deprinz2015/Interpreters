@@ -37,6 +37,14 @@ const TreeWalker = struct {
 
     fn traverseExpression(self: *TreeWalker, expr: *ast.Expr) !void {
         switch (expr.*) {
+            .unary => |unary| {
+                try self.traverseExpression(unary.expr);
+                switch (unary.op.type) {
+                    .@"!" => try self.writeOp(.NOT),
+                    .@"-" => try self.writeOp(.NEGATE),
+                    else => unreachable,
+                }
+            },
             .binary => |binary| {
                 try self.traverseExpression(binary.left);
                 try self.traverseExpression(binary.right);

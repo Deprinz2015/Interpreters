@@ -1,8 +1,13 @@
+// Simple arithmetic
 print 1 + 2;
 print 1 - 2;
 print 2 * 3;
 print 6 / 3;
 
-print true;
+// literals
 print nil;
+print true;
 print false;
+
+print -1; // negate
+print !true; // not

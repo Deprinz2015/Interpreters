@@ -17,6 +17,13 @@ pub const Value = union(enum) {
         };
     }
 
+    pub fn isFalsey(self: Value) bool {
+        if (self == .boolean) {
+            return !self.boolean;
+        }
+        return self == .nil; // nil is false, everything else it true, so inverse for isFalsey
+    }
+
     pub fn format(value: Value, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (value) {
             .number => try writer.print("{d}", .{value.number}),

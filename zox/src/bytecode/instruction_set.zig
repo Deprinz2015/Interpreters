@@ -5,6 +5,8 @@ pub const Instruction = enum(u8) {
     TRUE,
     FALSE,
     NIL,
+    NOT,
+    NEGATE,
     ADD,
     SUB,
     MUL,

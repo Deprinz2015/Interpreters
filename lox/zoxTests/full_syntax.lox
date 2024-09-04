@@ -8,8 +8,8 @@ while (1 == 1) {
      }
 }
 
-if (true) print 1;
-if (false) {} else print 2;
+if (true and true) print 1;
+if (false or true) {} else print 2;
 
 for (var i = 0; i < 5; i = i + 1) {
      print a;

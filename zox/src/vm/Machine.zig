@@ -19,6 +19,7 @@ const Error = error{
     UnexpectedInstruction,
     StackOverflow,
     IOError,
+    TypeError,
 };
 
 pub fn init(alloc: Allocator, program: []const u8) !VM {
@@ -69,6 +70,17 @@ fn run(self: *VM) !void {
         switch (instruction) {
             .NUMBER, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
             .POP => _ = self.pop(),
+            .NOT => {
+                const value = self.pop();
+                try self.push(.{ .boolean = value.isFalsey() });
+            },
+            .NEGATE => {
+                const value = self.pop();
+                if (value != .number) {
+                    return Error.TypeError;
+                }
+                try self.push(.{ .number = value.number * -1 });
+            },
             .ADD, .SUB, .MUL, .DIV => try self.binaryOp(instruction),
             .CONSTANT => {
                 const idx = self.readByte();
@@ -90,6 +102,9 @@ fn run(self: *VM) !void {
 fn binaryOp(self: *VM, op: Instruction) !void {
     const right = self.pop();
     const left = self.pop();
+
+    // TODO: Typechecks
+    // TODO: Special treatment for string concats later
 
     const result = switch (op) {
         .ADD => left.number + right.number,
