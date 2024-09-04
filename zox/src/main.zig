@@ -8,6 +8,8 @@ const Token = @import("compiler/Token.zig");
 
 const ByteCodeCompiler = @import("bytecode/Compiler.zig");
 
+const VM = @import("vm/Machine.zig");
+
 const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
 
 const Error = error{
@@ -55,13 +57,15 @@ pub fn main() !u8 {
         }
 
         if (parser.options.run) {
-            // TODO: execute bytecode
+            try run(alloc, bytecode);
         } else {
-            // TODO: save bytecode to .zox file
+            const output_file = parser.options.output orelse "program.zox";
+            try save(alloc, output_file, bytecode);
         }
     } else {
-        // TODO: Read bytecode from file
-        try run(alloc, "");
+        const code = try readFile(alloc, input);
+        defer alloc.free(code);
+        try run(alloc, code);
     }
 
     return 0;
@@ -88,6 +92,17 @@ fn readFile(alloc: Allocator, path: []const u8) ![]const u8 {
     return raw_content;
 }
 
+fn save(alloc: Allocator, filename: []const u8, code: []const u8) !void {
+    _ = alloc;
+    const file = std.fs.cwd().createFile(filename, .{}) catch {
+        std.io.getStdErr().writer().print("Could not open file '{s}'\n", .{filename}) catch {};
+        return Error.FileError;
+    };
+    defer file.close();
+
+    try file.writer().writeAll(code);
+}
+
 fn compile(alloc: Allocator, input: []const u8, print_ast: bool) ![]u8 {
     const source = try readFile(alloc, input);
     defer alloc.free(source);
@@ -108,8 +123,7 @@ fn compile(alloc: Allocator, input: []const u8, print_ast: bool) ![]u8 {
 }
 
 fn run(alloc: Allocator, bytecode: []const u8) !void {
-    // TODO: Execute bytecode
-    _ = alloc;
-    _ = bytecode;
-    @panic("Not supported yet");
+    var vm: VM = .init(alloc, bytecode);
+    defer vm.deinit();
+    try vm.execute();
 }

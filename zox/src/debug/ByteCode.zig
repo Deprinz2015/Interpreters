@@ -1,5 +1,5 @@
 const std = @import("std");
-const Instruction = @import("../bytecode/Compiler.zig").Instruction;
+const Instruction = @import("../bytecode/instruction_set.zig").Instruction;
 const Value = @import("../bytecode/value.zig").Value;
 
 pub fn print(program: []u8) !void {

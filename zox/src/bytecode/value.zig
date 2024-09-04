@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub const Value = union(enum) {
-    number: Number,
+    number: f64,
 
     pub fn equals(this: Value, that: Value) bool {
         if (std.meta.activeTag(this) != std.meta.activeTag(that)) {
@@ -9,11 +9,7 @@ pub const Value = union(enum) {
         }
 
         return switch (this) {
-            .number => this.number.value == that.number.value,
+            .number => this.number == that.number,
         };
     }
-
-    const Number = struct {
-        value: f64,
-    };
 };

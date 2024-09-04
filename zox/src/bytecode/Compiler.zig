@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ast = @import("../compiler/ast.zig");
+const Instruction = @import("instruction_set.zig").Instruction;
 const Value = @import("value.zig").Value;
 
 const Compiler = @This();
@@ -13,18 +14,6 @@ program: []*ast.Stmt,
 
 const Error = error{
     TooManyConstants,
-};
-
-pub const Instruction = enum(u8) {
-    CONSTANTS_DONE,
-    CONSTANT,
-    NUMBER,
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    POP,
-    PUSH,
 };
 
 const TreeWalker = struct {
@@ -56,7 +45,7 @@ const TreeWalker = struct {
             },
             .literal => |literal| {
                 const value: Value = switch (literal.value) {
-                    .number => |num| .{ .number = .{ .value = num } },
+                    .number => |num| .{ .number = num },
                     else => unreachable,
                 };
                 const idx = try self.compiler.saveConstant(value);
@@ -121,7 +110,7 @@ fn toBytecode(self: *Compiler) ![]u8 {
         switch (constant) {
             .number => {
                 try complete_code.append(@intFromEnum(Instruction.NUMBER));
-                try complete_code.appendSlice(&std.mem.toBytes(constant.number.value));
+                try complete_code.appendSlice(&std.mem.toBytes(constant.number));
             },
         }
     }
