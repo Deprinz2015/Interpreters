@@ -6,7 +6,7 @@ const Scanner = @import("compiler/Scanner.zig");
 const Parser = @import("compiler/Parser.zig");
 const Token = @import("compiler/Token.zig");
 
-const opcode = @import("bytecode/opcode.zig");
+const ByteCodeCompiler = @import("bytecode/Compiler.zig");
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
 
@@ -16,7 +16,7 @@ const Error = error{
 };
 
 pub fn main() !u8 {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.GeneralPurposeAllocator(.{ .verbose_log = true }){};
     defer std.debug.assert(gpa.deinit() == .ok);
     const alloc = gpa.allocator();
 
@@ -104,7 +104,7 @@ fn compile(alloc: Allocator, input: []const u8, print_ast: bool) ![]u8 {
         @import("debug/PrettyPrinter.zig").print(program) catch unreachable;
     }
 
-    return opcode.translate(program, alloc);
+    return try ByteCodeCompiler.translate(program, alloc);
 }
 
 fn run(alloc: Allocator, bytecode: []const u8) !void {
