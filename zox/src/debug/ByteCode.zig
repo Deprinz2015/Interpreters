@@ -10,16 +10,17 @@ pub fn print(program: []u8) !void {
     var offset: usize = 0;
     while (offset < program.len) {
         std.debug.print("{x:0>4} ", .{offset});
-        offset += switch (program[offset]) {
-            @intFromEnum(Instruction.CONSTANTS_DONE) => simpleInstruction("OP_CONSTANTS_DONE"),
-            @intFromEnum(Instruction.NUMBER) => valueInstruction("OP_NUMBER", program, .number),
-            @intFromEnum(Instruction.ADD) => simpleInstruction("OP_ADD"),
-            @intFromEnum(Instruction.SUB) => simpleInstruction("OP_SUB"),
-            @intFromEnum(Instruction.MUL) => simpleInstruction("OP_MUL"),
-            @intFromEnum(Instruction.DIV) => simpleInstruction("OP_DIV"),
-            @intFromEnum(Instruction.CONSTANT) => constantInstruction("OP_CONSTANT", program[1]),
-            @intFromEnum(Instruction.POP) => simpleInstruction("OP_POP"),
-            else => @panic("Unsupported Instruction"),
+        const instruction: Instruction = @enumFromInt(program[offset]);
+        offset += switch (instruction) {
+            .CONSTANTS_DONE => simpleInstruction("OP_CONSTANTS_DONE"),
+            .NUMBER => valueInstruction("OP_NUMBER", program, .number),
+            .ADD => simpleInstruction("OP_ADD"),
+            .SUB => simpleInstruction("OP_SUB"),
+            .MUL => simpleInstruction("OP_MUL"),
+            .DIV => simpleInstruction("OP_DIV"),
+            .CONSTANT => constantInstruction("OP_CONSTANT", program[1]),
+            .POP => simpleInstruction("OP_POP"),
+            .PRINT => simpleInstruction("OP_PRINT"),
         };
     }
 }
@@ -30,7 +31,7 @@ fn simpleInstruction(name: []const u8) usize {
 }
 
 fn valueInstruction(name: []const u8, program: []u8, value_type: std.meta.Tag(Value)) usize {
-    std.debug.print("{s} ", .{name});
+    std.debug.print("{s: <24} ", .{name});
     var offset: usize = 0;
     switch (value_type) {
         .number => {
@@ -44,6 +45,6 @@ fn valueInstruction(name: []const u8, program: []u8, value_type: std.meta.Tag(Va
 }
 
 fn constantInstruction(name: []const u8, idx: u8) usize {
-    std.debug.print("{s} {d}\n", .{ name, idx });
+    std.debug.print("{s: <24} {d}\n", .{ name, idx });
     return 2;
 }
