@@ -7,18 +7,21 @@ pub fn print(program: []u8) !void {
         return;
     }
 
-    const offset = switch (program[0]) {
-        @intFromEnum(Instruction.CONSTANTS_DONE) => simpleInstruction("OP_CONSTANTS_DONE"),
-        @intFromEnum(Instruction.NUMBER) => valueInstruction("OP_NUMBER", program, .number),
-        @intFromEnum(Instruction.ADD) => simpleInstruction("OP_ADD"),
-        @intFromEnum(Instruction.SUB) => simpleInstruction("OP_SUB"),
-        @intFromEnum(Instruction.MUL) => simpleInstruction("OP_MUL"),
-        @intFromEnum(Instruction.DIV) => simpleInstruction("OP_DIV"),
-        @intFromEnum(Instruction.CONSTANT) => constantInstruction("OP_CONSTANT", program[1]),
-        @intFromEnum(Instruction.POP) => simpleInstruction("OP_POP"),
-        else => @panic("Unsupported Instruction"),
-    };
-    try print(program[offset..]);
+    var offset: usize = 0;
+    while (offset < program.len) {
+        std.debug.print("{x:0>4} ", .{offset});
+        offset += switch (program[offset]) {
+            @intFromEnum(Instruction.CONSTANTS_DONE) => simpleInstruction("OP_CONSTANTS_DONE"),
+            @intFromEnum(Instruction.NUMBER) => valueInstruction("OP_NUMBER", program, .number),
+            @intFromEnum(Instruction.ADD) => simpleInstruction("OP_ADD"),
+            @intFromEnum(Instruction.SUB) => simpleInstruction("OP_SUB"),
+            @intFromEnum(Instruction.MUL) => simpleInstruction("OP_MUL"),
+            @intFromEnum(Instruction.DIV) => simpleInstruction("OP_DIV"),
+            @intFromEnum(Instruction.CONSTANT) => constantInstruction("OP_CONSTANT", program[1]),
+            @intFromEnum(Instruction.POP) => simpleInstruction("OP_POP"),
+            else => @panic("Unsupported Instruction"),
+        };
+    }
 }
 
 fn simpleInstruction(name: []const u8) usize {

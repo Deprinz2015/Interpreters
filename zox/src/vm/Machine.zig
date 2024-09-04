@@ -60,5 +60,5 @@ fn loadConstants(self: *VM) !void {
 }
 
 fn run(self: *VM) !void {
-    _ = self;
+    std.debug.print("ip: {d}\n", .{self.ip});
 }
