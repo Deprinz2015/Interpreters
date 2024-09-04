@@ -29,10 +29,20 @@ pub fn main() !u8 {
             .printAst = .{ .type = bool, .desc = "Print the generated AST before compiling to bytecode" },
             .printBytecode = .{ .type = bool, .desc = "Print the compiled Bytecode" },
             .run = .{ .type = bool, .short = 'r', .desc = "Run a .zox file. Only needed in combination with --compile" },
-            .output = .{ .type = []const u8, .short = 'o', .desc = "Alternative file path to output the compilation output" },
+            .output = .{
+                .type = []const u8,
+                .short = 'o',
+                .desc = "Alternative file path to output the compilation output",
+                .value_hint = "PATH",
+            },
         },
         .arguments = .{
-            .input = .{ .type = []const u8, .pos = 1, .desc = "Input file to run (or compile when using --compile)" },
+            .input = .{
+                .type = []const u8,
+                .pos = 1,
+                .desc = "Input file to run (or compile when using --compile)",
+                .value_hint = "PATH",
+            },
         },
     }).init(alloc);
     try parser.parse();

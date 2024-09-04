@@ -24,8 +24,8 @@
     // internet connectivity.
     .dependencies = .{
         .zli = .{
-            .url = "git+https://gitlab.com/nihklas/zli.git#b0e39633d678969641196c186543596b0e98aa44",
-            .hash = "122027124a8ec5886de1ace430c006d5a1b0c698eb607daefaa99edab35742fa6ecd",
+            .url = "git+https://gitlab.com/nihklas/zli.git#b50565718d3d67b10685db93c562c2de1dccde73",
+            .hash = "1220d16f1a7b9e329d20b97a69f5b49383b5c2a1a197091b1a0441a42de909278d8f",
         },
     },
     .paths = .{
