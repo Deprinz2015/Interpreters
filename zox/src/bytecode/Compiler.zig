@@ -41,11 +41,8 @@ const TreeWalker = struct {
     fn traverseExpression(self: *TreeWalker, expr: *ast.Expr) !void {
         switch (expr.*) {
             .binary => |binary| {
-                std.debug.print("left\n", .{});
                 try self.traverseExpression(binary.left);
-                std.debug.print("right\n", .{});
                 try self.traverseExpression(binary.right);
-                std.debug.print("op\n", .{});
                 switch (binary.op.type) {
                     .@"+" => try self.writeOp(.ADD),
                     else => unreachable,
@@ -57,7 +54,6 @@ const TreeWalker = struct {
                     else => unreachable,
                 };
                 const idx = try self.compiler.saveConstant(value);
-                std.debug.print("constant\n", .{});
                 try self.writeOperand(.CONSTANT, idx);
             },
             else => unreachable,
@@ -99,6 +95,7 @@ fn compile(self: *Compiler) !void {
 
         try walker.traverseStatement(stmt);
         const code = try walker.code.toOwnedSlice();
+        defer self.alloc.free(code);
 
         try self.code.appendSlice(code);
     }
@@ -125,7 +122,9 @@ fn toBytecode(self: *Compiler) ![]u8 {
 
     // All Constants are in front of the rest of the code
     try complete_code.append(@intFromEnum(Instruction.CONSTANTS_DONE));
-    try complete_code.appendSlice(try self.code.toOwnedSlice());
+    const code = try self.code.toOwnedSlice();
+    defer self.alloc.free(code);
+    try complete_code.appendSlice(code);
     return try complete_code.toOwnedSlice();
 }
 

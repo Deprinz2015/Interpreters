@@ -16,7 +16,7 @@ const Error = error{
 };
 
 pub fn main() !u8 {
-    var gpa = std.heap.GeneralPurposeAllocator(.{ .verbose_log = true }){};
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(gpa.deinit() == .ok);
     const alloc = gpa.allocator();
 
