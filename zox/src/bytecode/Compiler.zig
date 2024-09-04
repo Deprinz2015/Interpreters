@@ -19,6 +19,7 @@ const Error = error{
 const TreeWalker = struct {
     code: std.ArrayList(u8),
     compiler: *Compiler,
+    toplevel: bool,
 
     fn traverseStatement(self: *TreeWalker, stmt: *ast.Stmt) !void {
         switch (stmt.*) {
@@ -47,13 +48,14 @@ const TreeWalker = struct {
                     else => unreachable,
                 }
             },
-            .literal => |literal| {
-                const value: Value = switch (literal.value) {
-                    .number => |num| .{ .number = num },
-                    else => unreachable,
-                };
-                const idx = try self.compiler.saveConstant(value);
-                try self.writeOperand(.CONSTANT, idx);
+            .literal => |literal| switch (literal.value) {
+                .number => |num| {
+                    const idx = try self.compiler.saveConstant(.{ .number = num });
+                    try self.writeOperand(.CONSTANT, idx);
+                },
+                .boolean => |b| try self.writeOp(if (b) .TRUE else .FALSE),
+                .nil => try self.writeOp(.NIL),
+                else => unreachable,
             },
             else => unreachable,
         }
@@ -89,6 +91,7 @@ fn compile(self: *Compiler) !void {
         var walker: TreeWalker = .{
             .code = .init(self.alloc),
             .compiler = self,
+            .toplevel = true,
         };
         defer walker.code.deinit();
 
@@ -116,6 +119,7 @@ fn toBytecode(self: *Compiler) ![]u8 {
                 try complete_code.append(@intFromEnum(Instruction.NUMBER));
                 try complete_code.appendSlice(&std.mem.toBytes(constant.number));
             },
+            else => @panic("Unsupported constant type"),
         }
     }
 

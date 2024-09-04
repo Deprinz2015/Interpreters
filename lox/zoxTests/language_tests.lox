@@ -2,3 +2,7 @@ print 1 + 2;
 print 1 - 2;
 print 2 * 3;
 print 6 / 3;
+
+print true;
+print nil;
+print false;

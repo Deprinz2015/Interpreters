@@ -79,6 +79,9 @@ fn run(self: *VM) !void {
                 try printValue(value);
                 try printLiteral("\n");
             },
+            .TRUE => try self.push(.{ .boolean = true }),
+            .FALSE => try self.push(.{ .boolean = false }),
+            .NIL => try self.push(.nil),
         }
         // @import("../debug/Stack.zig").print(self.stack, self.stack_top);
     }
