@@ -20,6 +20,9 @@ pub const Instruction = enum(u8) {
     CONSTANT,
     NUMBER,
     ADD,
+    SUB,
+    MUL,
+    DIV,
     POP,
     PUSH,
 };
@@ -45,6 +48,9 @@ const TreeWalker = struct {
                 try self.traverseExpression(binary.right);
                 switch (binary.op.type) {
                     .@"+" => try self.writeOp(.ADD),
+                    .@"-" => try self.writeOp(.SUB),
+                    .@"*" => try self.writeOp(.MUL),
+                    .@"/" => try self.writeOp(.DIV),
                     else => unreachable,
                 }
             },
@@ -131,6 +137,16 @@ fn toBytecode(self: *Compiler) ![]u8 {
 fn saveConstant(self: *Compiler, value: Value) !u8 {
     if (self.constants_count >= self.constants.len) {
         return Error.TooManyConstants;
+    }
+
+    for (self.constants, 0..) |constant, i| {
+        if (i >= self.constants_count) {
+            break;
+        }
+
+        if (constant.equals(value)) {
+            return @intCast(i);
+        }
     }
 
     self.constants[self.constants_count] = value;
