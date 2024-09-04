@@ -32,7 +32,7 @@ pub fn main() !u8 {
             .output = .{ .type = []const u8, .short = 'o', .desc = "Alternative file path to output the compilation output" },
         },
         .arguments = .{
-            .input = .{ .type = []const u8, .pos = 1, .desc = "Alternative file path to output the compilation output" },
+            .input = .{ .type = []const u8, .pos = 1, .desc = "Input file to run (or compile when using --compile)" },
         },
     }).init(alloc);
     try parser.parse();
