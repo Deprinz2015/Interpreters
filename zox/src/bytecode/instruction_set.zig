@@ -7,5 +7,5 @@ pub const Instruction = enum(u8) {
     MUL,
     DIV,
     POP,
-    PUSH,
+    PRINT,
 };

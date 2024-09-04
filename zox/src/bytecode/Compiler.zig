@@ -26,6 +26,10 @@ const TreeWalker = struct {
                 try self.traverseExpression(stmt.expression.expr);
                 try self.code.append(@intFromEnum(Instruction.POP));
             },
+            .print => {
+                try self.traverseExpression(stmt.print.expr);
+                try self.code.append(@intFromEnum(Instruction.PRINT));
+            },
             else => unreachable,
         }
     }

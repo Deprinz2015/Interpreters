@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Value = @import("../bytecode/value.zig").Value;
 const Instruction = @import("../bytecode/instruction_set.zig").Instruction;
+const StdOut = std.io.getStdOut().writer();
 
 const VM = @This();
 
@@ -16,6 +17,8 @@ stack_top: usize,
 
 const Error = error{
     UnexpectedInstruction,
+    StackOverflow,
+    IOError,
 };
 
 pub fn init(alloc: Allocator, program: []const u8) !VM {
@@ -60,5 +63,68 @@ fn loadConstants(self: *VM) !void {
 }
 
 fn run(self: *VM) !void {
-    std.debug.print("ip: {d}\n", .{self.ip});
+    while (self.ip < self.code.len) {
+        const byte = self.readByte();
+        const instruction: Instruction = @enumFromInt(byte);
+        switch (instruction) {
+            .NUMBER, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
+            .POP => _ = self.pop(),
+            .ADD, .SUB, .MUL, .DIV => try self.binaryOp(instruction),
+            .CONSTANT => {
+                const idx = self.readByte();
+                try self.push(self.constants[idx]);
+            },
+            .PRINT => {
+                const value = self.pop();
+                try printValue(value);
+                try printLiteral("\n");
+            },
+        }
+        // @import("../debug/Stack.zig").print(self.stack, self.stack_top);
+    }
+}
+
+fn binaryOp(self: *VM, op: Instruction) !void {
+    const right = self.pop();
+    const left = self.pop();
+
+    const result = switch (op) {
+        .ADD => left.number + right.number,
+        .SUB => left.number - right.number,
+        .MUL => left.number * right.number,
+        .DIV => left.number / right.number,
+        else => unreachable,
+    };
+    try self.push(.{ .number = result });
+}
+
+fn readByte(self: *VM) u8 {
+    const byte = self.code[self.ip];
+    self.ip += 1;
+    return byte;
+}
+
+fn pop(self: *VM) Value {
+    if (self.stack_top == 0) {
+        @panic("Stack cannot be lowered");
+    }
+
+    self.stack_top -= 1;
+    return self.stack[self.stack_top];
+}
+
+fn push(self: *VM, value: Value) !void {
+    if (self.stack_top == STACK_MAX) {
+        return Error.StackOverflow;
+    }
+    self.stack[self.stack_top] = value;
+    self.stack_top += 1;
+}
+
+fn printValue(value: Value) !void {
+    StdOut.print("{}", .{value}) catch return Error.IOError;
+}
+
+fn printLiteral(str: []const u8) !void {
+    StdOut.writeAll(str) catch return Error.IOError;
 }

@@ -12,4 +12,10 @@ pub const Value = union(enum) {
             .number => this.number == that.number,
         };
     }
+
+    pub fn format(value: Value, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (value) {
+            .number => try writer.print("{d}", .{value.number}),
+        }
+    }
 };
