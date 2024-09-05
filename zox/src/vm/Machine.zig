@@ -82,6 +82,7 @@ fn run(self: *VM) !void {
                 try self.push(.{ .number = value.number * -1 });
             },
             .ADD, .SUB, .MUL, .DIV => try self.binaryOp(instruction),
+            .EQUAL, .NOT_EQUAL, .LESS, .LESS_EQUAL, .GREATER, .GREATER_EQUAL => try self.equalityOp(instruction),
             .CONSTANT => {
                 const idx = self.readByte();
                 try self.push(self.constants[idx]);
@@ -114,6 +115,25 @@ fn binaryOp(self: *VM, op: Instruction) !void {
         else => unreachable,
     };
     try self.push(.{ .number = result });
+}
+
+fn equalityOp(self: *VM, op: Instruction) !void {
+    const right = self.pop();
+    const left = self.pop();
+
+    // TODO: Type check for less and greater operations
+
+    const result = switch (op) {
+        .EQUAL => left.equals(right),
+        .NOT_EQUAL => !left.equals(right),
+        .LESS => left.number < right.number,
+        .LESS_EQUAL => left.number <= right.number,
+        .GREATER => left.number > right.number,
+        .GREATER_EQUAL => left.number >= right.number,
+        else => unreachable,
+    };
+
+    try self.push(.{ .boolean = result });
 }
 
 fn readByte(self: *VM) u8 {

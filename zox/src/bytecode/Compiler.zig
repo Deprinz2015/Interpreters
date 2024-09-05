@@ -53,6 +53,12 @@ const TreeWalker = struct {
                     .@"-" => try self.writeOp(.SUB),
                     .@"*" => try self.writeOp(.MUL),
                     .@"/" => try self.writeOp(.DIV),
+                    .@"==" => try self.writeOp(.EQUAL),
+                    .@"!=" => try self.writeOp(.NOT_EQUAL),
+                    .@"<" => try self.writeOp(.LESS),
+                    .@"<=" => try self.writeOp(.LESS_EQUAL),
+                    .@">" => try self.writeOp(.GREATER),
+                    .@">=" => try self.writeOp(.GREATER_EQUAL),
                     else => unreachable,
                 }
             },

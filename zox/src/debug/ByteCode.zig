@@ -26,6 +26,12 @@ pub fn print(program: []u8) !void {
             .FALSE => simpleInstruction("OP_FALSE"),
             .NOT => simpleInstruction("OP_NOT"),
             .NEGATE => simpleInstruction("OP_NEGATE"),
+            .EQUAL => simpleInstruction("OP_EQUAL"),
+            .NOT_EQUAL => simpleInstruction("OP_NOT_EQUAL"),
+            .LESS => simpleInstruction("OP_LESS"),
+            .LESS_EQUAL => simpleInstruction("OP_LESS_EQUAL"),
+            .GREATER => simpleInstruction("OP_GREATER"),
+            .GREATER_EQUAL => simpleInstruction("OP_GREATER_EQUAL"),
         };
     }
 }
