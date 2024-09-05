@@ -16,6 +16,7 @@ program: []*ast.Stmt,
 const Error = error{
     TooManyConstants,
     StringToLong,
+    ConstantNotFound,
 };
 
 const TreeWalker = struct {
@@ -27,11 +28,24 @@ const TreeWalker = struct {
         switch (stmt.*) {
             .expression => {
                 try self.traverseExpression(stmt.expression.expr);
-                try self.code.append(@intFromEnum(Instruction.POP));
+                try self.writeOp(.POP);
             },
             .print => {
                 try self.traverseExpression(stmt.print.expr);
-                try self.code.append(@intFromEnum(Instruction.PRINT));
+                try self.writeOp(.PRINT);
+            },
+            .var_stmt => |decl| {
+                if (decl.initializer) |init| {
+                    try self.traverseExpression(init);
+                } else {
+                    try self.writeOp(.NIL);
+                }
+                const idx = try self.compiler.saveConstant(try String.copyString(decl.name.lexeme, self.compiler.alloc));
+                if (self.toplevel) {
+                    try self.writeOperand(.GLOBAL_DEFINE, idx);
+                } else {
+                    unreachable; // Locals are not supported yet
+                }
             },
             else => unreachable,
         }
@@ -75,6 +89,25 @@ const TreeWalker = struct {
                     const idx = try self.compiler.saveConstant(try String.copyString(str, self.compiler.alloc));
                     try self.writeOperand(.CONSTANT, idx);
                 },
+            },
+            .variable => |variable| {
+                if (self.toplevel) {
+                    var name: String = .{ .value = variable.name.lexeme };
+                    const idx = try self.compiler.getConstant(.{ .string = &name });
+                    try self.writeOperand(.GLOBAL_GET, idx);
+                } else {
+                    unreachable; // Locals are not supported yet
+                }
+            },
+            .assignment => |assignment| {
+                if (self.toplevel) {
+                    var name: String = .{ .value = assignment.name.lexeme };
+                    const idx = try self.compiler.getConstant(.{ .string = &name });
+                    try self.traverseExpression(assignment.value);
+                    try self.writeOperand(.GLOBAL_SET, idx);
+                } else {
+                    unreachable; // Locals are not supported yet
+                }
             },
             else => unreachable,
         }
@@ -188,4 +221,23 @@ fn saveConstant(self: *Compiler, value: Value) !u8 {
     self.constants[self.constants_count] = value;
     self.constants_count += 1;
     return @intCast(self.constants_count - 1);
+}
+
+fn getConstant(self: *Compiler, value: Value) !u8 {
+    for (self.constants, 0..) |constant, i| {
+        if (i >= self.constants_count) {
+            break;
+        }
+
+        if (constant.equals(value)) {
+            return @intCast(i);
+        }
+
+        if (constant == .string and value == .string) {
+            if (std.mem.eql(u8, constant.string.value, value.string.value)) {
+                return @intCast(i);
+            }
+        }
+    }
+    return Error.ConstantNotFound;
 }

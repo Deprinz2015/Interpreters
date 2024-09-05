@@ -1,8 +1,9 @@
 pub const Instruction = enum(u8) {
-    CONSTANTS_DONE,
-    CONSTANT,
+    // Datatypes are only valid for constants
     NUMBER,
     STRING,
+    CONSTANTS_DONE, // Marks end of constant definition
+    CONSTANT,
     TRUE,
     FALSE,
     NIL,
@@ -18,6 +19,9 @@ pub const Instruction = enum(u8) {
     SUB,
     MUL,
     DIV,
+    GLOBAL_DEFINE,
+    GLOBAL_GET,
+    GLOBAL_SET,
     POP,
     PRINT,
 };

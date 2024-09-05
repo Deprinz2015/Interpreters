@@ -11,6 +11,7 @@ const STACK_MAX = 256;
 alloc: Allocator,
 constants: [256]Value,
 constants_count: usize,
+globals: std.StringHashMap(Value),
 code: []const u8,
 ip: usize,
 stack: []Value,
@@ -28,6 +29,7 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
         .alloc = alloc,
         .constants = undefined,
         .constants_count = 0,
+        .globals = .init(alloc),
         .code = program,
         .ip = 0,
         .stack = try alloc.alloc(Value, STACK_MAX),
@@ -36,6 +38,7 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
 }
 
 pub fn deinit(self: *VM) void {
+    self.globals.deinit();
     self.alloc.free(self.stack);
     for (self.constants, 0..) |value, i| {
         if (i >= self.constants_count) {
@@ -116,6 +119,48 @@ fn run(self: *VM) !void {
             .TRUE => try self.push(.{ .boolean = true }),
             .FALSE => try self.push(.{ .boolean = false }),
             .NIL => try self.push(.nil),
+            .GLOBAL_DEFINE => {
+                const idx = self.readByte();
+                const name = self.constants[idx];
+                if (name != .string) {
+                    // weird
+                    unreachable;
+                }
+                const value = self.pop();
+                try self.globals.put(name.string.value, value);
+            },
+            .GLOBAL_GET => {
+                const idx = self.readByte();
+                const name = self.constants[idx];
+                if (name != .string) {
+                    // weird
+                    unreachable;
+                }
+                if (self.globals.get(name.string.value)) |val| {
+                    try self.push(val);
+                } else {
+                    // undefined global
+                    // TODO: This needs to be better handled
+                    unreachable;
+                }
+            },
+            .GLOBAL_SET => {
+                const idx = self.readByte();
+                const name = self.constants[idx];
+                if (name != .string) {
+                    // weird
+                    unreachable;
+                }
+                if (self.globals.get(name.string.value)) |_| {
+                    const value = self.pop();
+                    try self.globals.put(name.string.value, value);
+                    try self.push(value);
+                } else {
+                    // undefined global
+                    // TODO: This needs to be better handled
+                    unreachable;
+                }
+            },
         }
         // @import("../debug/Stack.zig").print(self.stack, self.stack_top);
     }

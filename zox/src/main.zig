@@ -11,6 +11,8 @@ const ByteCodeCompiler = @import("bytecode/Compiler.zig");
 
 const VM = @import("vm/Machine.zig");
 
+const Disassembler = @import("debug/Disassembler.zig");
+
 const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
 
 const Error = error{
@@ -64,7 +66,9 @@ pub fn main() !u8 {
         defer alloc.free(bytecode);
 
         if (parser.options.printBytecode) {
-            try @import("debug/ByteCode.zig").print(bytecode);
+            var disassembler: Disassembler = .init(bytecode, alloc);
+            defer disassembler.deinit();
+            try disassembler.print();
         }
 
         if (parser.options.run) {

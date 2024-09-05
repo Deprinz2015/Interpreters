@@ -1,0 +1,11 @@
+var none;
+var name = "Niklas";
+var result = 1 + 5;
+var calc = 2 + result;
+
+none = "none";
+
+print none;
+print name;
+print result;
+print calc;
