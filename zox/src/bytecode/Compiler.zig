@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const ast = @import("../compiler/ast.zig");
 const Instruction = @import("instruction_set.zig").Instruction;
 const Value = @import("value.zig").Value;
+const String = Value.String;
 
 const Compiler = @This();
 
@@ -14,6 +15,7 @@ program: []*ast.Stmt,
 
 const Error = error{
     TooManyConstants,
+    StringToLong,
 };
 
 const TreeWalker = struct {
@@ -69,7 +71,10 @@ const TreeWalker = struct {
                 },
                 .boolean => |b| try self.writeOp(if (b) .TRUE else .FALSE),
                 .nil => try self.writeOp(.NIL),
-                else => unreachable,
+                .string => |str| {
+                    const idx = try self.compiler.saveConstant(try String.copyString(str, self.compiler.alloc));
+                    try self.writeOperand(.CONSTANT, idx);
+                },
             },
             else => unreachable,
         }
@@ -133,6 +138,19 @@ fn toBytecode(self: *Compiler) ![]u8 {
                 try complete_code.append(@intFromEnum(Instruction.NUMBER));
                 try complete_code.appendSlice(&std.mem.toBytes(constant.number));
             },
+            .string => {
+                try complete_code.append(@intFromEnum(Instruction.STRING));
+                // String length is written into 2 bytes
+                const len = constant.string.value.len;
+                if (len > std.math.maxInt(u16)) {
+                    return Error.StringToLong;
+                }
+                try complete_code.append(@intCast((len >> 8) & 0xff));
+                try complete_code.append(@intCast(len & 0xff));
+                try complete_code.appendSlice(constant.string.value);
+                // appendSlice copies the memory, so we can safely free it here
+                constant.destroy(self.alloc);
+            },
             else => @panic("Unsupported constant type"),
         }
     }
@@ -157,6 +175,13 @@ fn saveConstant(self: *Compiler, value: Value) !u8 {
 
         if (constant.equals(value)) {
             return @intCast(i);
+        }
+
+        if (constant == .string and value == .string) {
+            if (std.mem.eql(u8, constant.string.value, value.string.value)) {
+                value.destroy(self.alloc);
+                return @intCast(i);
+            }
         }
     }
 

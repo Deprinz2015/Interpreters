@@ -2,6 +2,7 @@ pub const Instruction = enum(u8) {
     CONSTANTS_DONE,
     CONSTANT,
     NUMBER,
+    STRING,
     TRUE,
     FALSE,
     NIL,

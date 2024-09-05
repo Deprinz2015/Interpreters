@@ -14,6 +14,7 @@ pub fn print(program: []u8) !void {
         offset += switch (instruction) {
             .CONSTANTS_DONE => simpleInstruction("OP_CONSTANTS_DONE"),
             .NUMBER => valueInstruction("OP_NUMBER", program, .number, offset),
+            .STRING => valueInstruction("OP_STRING", program, .string, offset),
             .ADD => simpleInstruction("OP_ADD"),
             .SUB => simpleInstruction("OP_SUB"),
             .MUL => simpleInstruction("OP_MUL"),
@@ -49,6 +50,18 @@ fn valueInstruction(name: []const u8, program: []u8, value_type: std.meta.Tag(Va
             const value = std.mem.bytesToValue(f64, program[offset + 1 .. offset + 9]);
             std.debug.print("{d}", .{value});
             new_offset = 8;
+        },
+        .string => {
+            const len = len: {
+                const lhs: u16 = @intCast(program[offset + 1]);
+                const rhs: u16 = @intCast(program[offset + 2]);
+                break :len (lhs << 8) | rhs;
+            };
+
+            const value = program[offset + 3 .. offset + 3 + len];
+            std.debug.print("{s}", .{value});
+
+            new_offset = 2 + len;
         },
         else => @panic("Unsupported value type"),
     }

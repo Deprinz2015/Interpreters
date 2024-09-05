@@ -10,6 +10,7 @@ const STACK_MAX = 256;
 
 alloc: Allocator,
 constants: [256]Value,
+constants_count: usize,
 code: []const u8,
 ip: usize,
 stack: []Value,
@@ -26,6 +27,7 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
     return .{
         .alloc = alloc,
         .constants = undefined,
+        .constants_count = 0,
         .code = program,
         .ip = 0,
         .stack = try alloc.alloc(Value, STACK_MAX),
@@ -35,6 +37,13 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
 
 pub fn deinit(self: *VM) void {
     self.alloc.free(self.stack);
+    for (self.constants, 0..) |value, i| {
+        if (i >= self.constants_count) {
+            break;
+        }
+
+        value.destroy(self.alloc);
+    }
 }
 
 pub fn execute(self: *VM) !void {
@@ -43,20 +52,32 @@ pub fn execute(self: *VM) !void {
 }
 
 fn loadConstants(self: *VM) !void {
-    var constants_count: usize = 0;
     var idx: usize = 0;
     while (idx < self.code.len) {
         const code = self.code[idx];
-        switch (code) {
-            @intFromEnum(Instruction.CONSTANTS_DONE) => {
+        const instruction: Instruction = @enumFromInt(code);
+        switch (instruction) {
+            .CONSTANTS_DONE => {
                 self.ip = idx + 1;
                 return;
             },
-            @intFromEnum(Instruction.NUMBER) => {
+            .NUMBER => {
                 const number = std.mem.bytesToValue(f64, self.code[idx + 1 .. idx + 9]);
-                self.constants[constants_count] = .{ .number = number };
-                constants_count += 1;
+                self.constants[self.constants_count] = .{ .number = number };
+                self.constants_count += 1;
                 idx += 9; // 1 for instruction + 8 for 64-bit float
+            },
+            .STRING => {
+                const len = len: {
+                    const lhs: u16 = @intCast(self.code[idx + 1]);
+                    const rhs: u16 = @intCast(self.code[idx + 2]);
+                    break :len (lhs << 8) | rhs;
+                };
+
+                const value = self.code[idx + 3 .. idx + 3 + len];
+                self.constants[self.constants_count] = try Value.String.copyString(value, self.alloc);
+                self.constants_count += 1;
+                idx += 1 + 2 + len; // 1 for instruction, 2 for len, len of string
             },
             else => return Error.UnexpectedInstruction,
         }
@@ -68,7 +89,7 @@ fn run(self: *VM) !void {
         const byte = self.readByte();
         const instruction: Instruction = @enumFromInt(byte);
         switch (instruction) {
-            .NUMBER, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
+            .NUMBER, .STRING, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
             .POP => _ = self.pop(),
             .NOT => {
                 const value = self.pop();
