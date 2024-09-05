@@ -5,6 +5,7 @@ const zli = @import("zli");
 const Scanner = @import("compiler/Scanner.zig");
 const Parser = @import("compiler/Parser.zig");
 const Token = @import("compiler/Token.zig");
+const Sema = @import("compiler/Sema.zig");
 
 const ByteCodeCompiler = @import("bytecode/Compiler.zig");
 
@@ -128,6 +129,9 @@ fn compile(alloc: Allocator, input: []const u8, print_ast: bool) ![]u8 {
     if (print_ast) {
         @import("debug/PrettyPrinter.zig").print(program) catch unreachable;
     }
+
+    var sema: Sema = .{ .tree = program };
+    try sema.scoping();
 
     return try ByteCodeCompiler.translate(program, alloc);
 }

@@ -1,0 +1,10 @@
+var global = 1;
+
+{
+    var local = 2;
+    print( global);
+    print( local);
+}
+
+print( global);
+print(local);

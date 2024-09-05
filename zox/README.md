@@ -12,6 +12,14 @@ Without any Option it runs a `.zox` file.
 
 With Options `-rc` it compiles AND runs a `.lox` file with keeping the Byte-Code in Memory.
 
+# TODOs
+
+## Errorhandling
+
+- [ ] Differentiate between Compiler (zig) and User (lox) Errors.
+- [ ] Save line information between lox code, AST and Bytecode
+- [ ] Give more helpful messages
+
 # Full Grammar
 
 The full grammar supported by this Implementation. Is is slightly modified to not use OOP.
