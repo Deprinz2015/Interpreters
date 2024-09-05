@@ -144,6 +144,8 @@ pub const Stmt = union(enum) {
     if_stmt: If,
     var_stmt: Var,
 
+    // TODO: Add function statements
+
     pub fn newExpression(alloc: Allocator, expr: *Expr) !*Stmt {
         const node = try alloc.create(Stmt);
         node.* = .{
