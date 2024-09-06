@@ -14,6 +14,8 @@ const Error = error{
     WrongNumberFormat,
     CouldNotGenerateNode,
     InvalidAssignment,
+    TooManyArguments,
+    TooManyParameters,
 };
 
 scanner: *Scanner,
@@ -69,7 +71,37 @@ fn declaration(self: *Parser) !*ast.Stmt {
         return self.varDeclaration();
     }
 
+    if (self.match(.FUN)) {
+        return self.function();
+    }
+
     return self.statement();
+}
+
+fn function(self: *Parser) !*ast.Stmt {
+    try self.consume(.IDENTIFIER, "Expect function name");
+    const name = self.previous.?;
+    try self.consume(.@"(", "Expect '(' after function name");
+    var parameters: std.ArrayList(Token) = .init(self.alloc.allocator());
+    defer parameters.deinit();
+    if (!self.check(.@")")) {
+        while (true) {
+            if (parameters.items.len > 255) {
+                return Error.TooManyParameters;
+            }
+
+            try self.consume(.IDENTIFIER, "Expect parameter name");
+            try parameters.append(self.previous.?);
+
+            if (!self.match(.@",")) break;
+        }
+    }
+
+    try self.consume(.@")", "Expect ')' after parameters");
+    try self.consume(.@"{", "Expect '{{' before function body");
+    const body = try self.block();
+    const params = try parameters.toOwnedSlice();
+    return ast.Stmt.newFunction(self.alloc.allocator(), name, params, body);
 }
 
 fn varDeclaration(self: *Parser) !*ast.Stmt {
@@ -110,21 +142,25 @@ fn statement(self: *Parser) Error!*ast.Stmt {
     }
 
     if (self.match(.@"{")) {
-        var statements = std.ArrayList(*ast.Stmt).init(self.alloc.allocator());
-
-        while (!self.atEnd() and !self.check(.@"}")) {
-            const maybe_stmt = self.decl();
-            if (maybe_stmt) |stmt| {
-                statements.append(stmt) catch return Error.CouldNotGenerateNode;
-            }
-        }
-
-        try self.consume(.@"}", "Expected '}}' after block");
-        const stmts = statements.toOwnedSlice() catch return Error.CouldNotGenerateNode;
+        const stmts = try self.block();
         return ast.Stmt.newBlock(self.alloc.allocator(), stmts) catch Error.CouldNotGenerateNode;
     }
 
     return self.expressionStatement();
+}
+
+fn block(self: *Parser) Error![]*ast.Stmt {
+    var statements = std.ArrayList(*ast.Stmt).init(self.alloc.allocator());
+
+    while (!self.atEnd() and !self.check(.@"}")) {
+        const maybe_stmt = self.decl();
+        if (maybe_stmt) |stmt| {
+            statements.append(stmt) catch return Error.CouldNotGenerateNode;
+        }
+    }
+
+    try self.consume(.@"}", "Expected '}}' after block");
+    return statements.toOwnedSlice() catch return Error.CouldNotGenerateNode;
 }
 
 fn forStatement(self: *Parser) Error!*ast.Stmt {
@@ -310,12 +346,38 @@ fn unary(self: *Parser) Error!*ast.Expr {
         return ast.Expr.newUnary(self.alloc.allocator(), self.previous.?, try self.unary()) catch Error.CouldNotGenerateNode;
     }
 
-    return self.primary();
+    return self.call();
 }
 
-// TODO: Add a call expression between unary and primary
-// unary   → ( "!" | "-" ) unary | call ;
-// call    → primary ( "(" arguments? ")" )* ;
+fn call(self: *Parser) Error!*ast.Expr {
+    const value = try self.primary();
+
+    if (!self.match(.@"(")) {
+        return value;
+    }
+
+    if (self.match(.@")")) {
+        return ast.Expr.newCall(self.alloc.allocator(), value, &.{}) catch Error.CouldNotGenerateNode;
+    }
+
+    var arguments: std.ArrayList(*ast.Expr) = .init(self.alloc.allocator());
+    defer arguments.deinit();
+
+    while (true) {
+        if (arguments.items.len > 255) {
+            return Error.TooManyArguments;
+        }
+        const argument = try self.expression();
+        arguments.append(argument) catch return Error.CouldNotGenerateNode;
+        if (!self.match(.@",")) {
+            break;
+        }
+    }
+
+    try self.consume(.@")", "Expect ')' after arguments");
+    const arguments_raw = arguments.toOwnedSlice() catch return Error.CouldNotGenerateNode;
+    return ast.Expr.newCall(self.alloc.allocator(), value, arguments_raw) catch Error.CouldNotGenerateNode;
+}
 
 fn primary(self: *Parser) Error!*ast.Expr {
     if (self.match(.FALSE)) {

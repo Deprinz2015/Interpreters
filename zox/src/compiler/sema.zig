@@ -67,6 +67,23 @@ pub const Scoping = struct {
                     try self.visitStmt(else_stmt);
                 }
             },
+            .function => |function| {
+                try self.declare(function.name);
+                try self.define(function.name);
+
+                try self.beginScope();
+
+                for (function.params) |param| {
+                    try self.declare(param);
+                    try self.define(param);
+                }
+
+                for (function.body) |statement| {
+                    try self.visitStmt(statement);
+                }
+
+                try self.endScope();
+            },
         }
     }
 
@@ -91,6 +108,12 @@ pub const Scoping = struct {
                             return Scoping.Error.AccessBeforeDefined;
                         }
                     }
+                }
+            },
+            .call => |call| {
+                try self.visitExpr(call.callee);
+                for (call.arguments) |arg| {
+                    try self.visitExpr(arg);
                 }
             },
         }

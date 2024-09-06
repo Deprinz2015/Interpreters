@@ -9,6 +9,7 @@ pub const Expr = union(enum) {
     logical: Logical,
     variable: Variable,
     assignment: Assignment,
+    call: Call,
 
     pub fn newLiteral(alloc: Allocator, value: Literal.Value) !*Expr {
         const node = try alloc.create(Expr);
@@ -81,6 +82,17 @@ pub const Expr = union(enum) {
         return node;
     }
 
+    pub fn newCall(alloc: Allocator, callee: *Expr, arguments: []*Expr) !*Expr {
+        const node = try alloc.create(Expr);
+        node.* = .{
+            .call = .{
+                .callee = callee,
+                .arguments = arguments,
+            },
+        };
+        return node;
+    }
+
     pub const Literal = struct {
         value: Value,
 
@@ -118,6 +130,11 @@ pub const Expr = union(enum) {
         value: *Expr,
     };
 
+    pub const Call = struct {
+        callee: *Expr,
+        arguments: []*Expr,
+    };
+
     pub fn format(value: Expr, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (value) {
             .literal => switch (value.literal.value) {
@@ -131,6 +148,7 @@ pub const Expr = union(enum) {
             .logical => try writer.print("Logical: {s}", .{value.logical.op.lexeme}),
             .assignment => try writer.print("Assignment: {s} expr", .{value.assignment.name.lexeme}),
             .variable => try writer.print("Variable: {s}", .{value.variable.name.lexeme}),
+            .call => try writer.print("Call: expr", .{}),
         }
     }
 };
@@ -143,8 +161,7 @@ pub const Stmt = union(enum) {
     while_stmt: While,
     if_stmt: If,
     var_stmt: Var,
-
-    // TODO: Add function statements
+    function: Function,
 
     pub fn newExpression(alloc: Allocator, expr: *Expr) !*Stmt {
         const node = try alloc.create(Stmt);
@@ -220,6 +237,18 @@ pub const Stmt = union(enum) {
         return node;
     }
 
+    pub fn newFunction(alloc: Allocator, name: Token, params: []Token, body: []*Stmt) !*Stmt {
+        const node = try alloc.create(Stmt);
+        node.* = .{
+            .function = .{
+                .name = name,
+                .params = params,
+                .body = body,
+            },
+        };
+        return node;
+    }
+
     pub const Expression = struct {
         expr: *Expr,
     };
@@ -250,6 +279,12 @@ pub const Stmt = union(enum) {
     pub const Var = struct {
         name: Token,
         initializer: ?*Expr,
+    };
+
+    pub const Function = struct {
+        name: Token,
+        params: []Token,
+        body: []*Stmt,
     };
 
     pub fn format(value: Stmt, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {

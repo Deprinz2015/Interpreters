@@ -73,6 +73,19 @@ fn printStmtOnLevel(node: *Stmt, level: u8) !void {
                 try printExprOnLevel(expr, level + 1);
             }
         },
+        .function => {
+            try StdOut.print("[fun - {s}(", .{node.function.name.lexeme});
+            for (node.function.params, 0..) |param, i| {
+                try StdOut.print("{s}", .{param.lexeme});
+                if (i < node.function.params.len - 1) {
+                    try StdOut.writeAll(", ");
+                }
+            }
+            try StdOut.writeAll(") - body]\n");
+            for (node.function.body) |stmt| {
+                try printStmtOnLevel(stmt, level + 1);
+            }
+        },
     }
 }
 
@@ -113,6 +126,14 @@ fn printExprOnLevel(node: *Expr, level: u8) !void {
             try StdOut.print("(assignment '{s}' - expr)", .{assign.name.lexeme});
             try StdOut.writeByte('\n');
             try printExprOnLevel(assign.value, level + 1);
+        },
+        .call => |call| {
+            try StdOut.print("(call - expr, arguments)", .{});
+            try StdOut.writeByte('\n');
+            try printExprOnLevel(call.callee, level + 1);
+            for (call.arguments) |arg| {
+                try printExprOnLevel(arg, level + 1);
+            }
         },
     }
 }
