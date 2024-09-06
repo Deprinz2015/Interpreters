@@ -100,6 +100,9 @@ pub fn print(self: *Disassembler) !void {
             .GLOBAL_DEFINE => self.constantInstruction("OP_GLOBAL_DEFINE"),
             .GLOBAL_GET => self.constantInstruction("OP_GLOBAL_GET"),
             .GLOBAL_SET => self.constantInstruction("OP_GLOBAL_SET"),
+            .LOCAL_GET => self.operandInstruction("OP_LOCAL_GET"),
+            .LOCAL_SET => self.simpleInstruction("OP_LOCAL_SET"),
+            .LOCAL_POP => self.simpleInstruction("OP_LOCAL_POP"),
         }
     }
 }
@@ -107,6 +110,18 @@ pub fn print(self: *Disassembler) !void {
 fn simpleInstruction(self: *Disassembler, name: []const u8) void {
     std.debug.print("{s}\n", .{name});
     self.ip += 1;
+}
+
+fn operandInstruction(self: *Disassembler, name: []const u8) void {
+    std.debug.print("{s: <24} {d}\n", .{ name, self.code[self.ip + 1] });
+    self.ip += 2;
+}
+
+fn constantInstruction(self: *Disassembler, name: []const u8) void {
+    const idx = self.code[self.ip + 1];
+    const constant = self.constants[idx];
+    std.debug.print("{s: <24} {d: <8} {}\n", .{ name, idx, constant });
+    self.ip += 2;
 }
 
 fn valueInstruction(self: *Disassembler, name: []const u8, value_type: std.meta.Tag(Value)) void {
@@ -134,11 +149,4 @@ fn valueInstruction(self: *Disassembler, name: []const u8, value_type: std.meta.
     }
     std.debug.print("\n", .{});
     self.ip += new_ip + 1;
-}
-
-fn constantInstruction(self: *Disassembler, name: []const u8) void {
-    const idx = self.code[self.ip + 1];
-    const constant = self.constants[idx];
-    std.debug.print("{s: <24} {d: <8} {}\n", .{ name, idx, constant });
-    self.ip += 2;
 }

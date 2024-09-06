@@ -5,7 +5,7 @@ const zli = @import("zli");
 const Scanner = @import("compiler/Scanner.zig");
 const Parser = @import("compiler/Parser.zig");
 const Token = @import("compiler/Token.zig");
-const Sema = @import("compiler/Sema.zig");
+const sema = @import("compiler/sema.zig");
 
 const ByteCodeCompiler = @import("bytecode/Compiler.zig");
 
@@ -21,7 +21,7 @@ const Error = error{
 };
 
 pub fn main() !u8 {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 10 }) = .init;
     defer std.debug.assert(gpa.deinit() == .ok);
     const alloc = gpa.allocator();
 
@@ -134,8 +134,9 @@ fn compile(alloc: Allocator, input: []const u8, print_ast: bool) ![]u8 {
         @import("debug/PrettyPrinter.zig").print(program) catch unreachable;
     }
 
-    var sema: Sema = .{ .tree = program };
-    try sema.scoping();
+    var first_pass: sema.Scoping = .init(alloc, program);
+    defer first_pass.deinit();
+    try first_pass.analyse();
 
     return try ByteCodeCompiler.translate(program, alloc);
 }

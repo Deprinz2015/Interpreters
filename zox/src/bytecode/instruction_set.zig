@@ -22,6 +22,9 @@ pub const Instruction = enum(u8) {
     GLOBAL_DEFINE,
     GLOBAL_GET,
     GLOBAL_SET,
+    LOCAL_GET,
+    LOCAL_SET,
+    LOCAL_POP,
     POP,
     PRINT,
 };

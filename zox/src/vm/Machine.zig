@@ -12,6 +12,8 @@ alloc: Allocator,
 constants: [256]Value,
 constants_count: usize,
 globals: std.StringHashMap(Value),
+locals: [256]Value,
+locals_count: usize,
 code: []const u8,
 ip: usize,
 stack: []Value,
@@ -29,6 +31,8 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
         .alloc = alloc,
         .constants = undefined,
         .constants_count = 0,
+        .locals = undefined,
+        .locals_count = 0,
         .globals = .init(alloc),
         .code = program,
         .ip = 0,
@@ -161,6 +165,14 @@ fn run(self: *VM) !void {
                     unreachable;
                 }
             },
+            .LOCAL_POP => self.locals_count -= 1,
+            .LOCAL_GET => {
+                const idx = self.readByte();
+                try self.push(self.localAt(idx));
+            },
+            .LOCAL_SET => {
+                self.pushLocal(self.pop());
+            },
         }
         // @import("../debug/Stack.zig").print(self.stack, self.stack_top);
     }
@@ -223,6 +235,15 @@ fn push(self: *VM, value: Value) !void {
     }
     self.stack[self.stack_top] = value;
     self.stack_top += 1;
+}
+
+fn localAt(self: *VM, idx: usize) Value {
+    return self.locals[self.locals_count - idx];
+}
+
+fn pushLocal(self: *VM, value: Value) void {
+    self.locals[self.locals_count] = value;
+    self.locals_count += 1;
 }
 
 fn printValue(value: Value) !void {

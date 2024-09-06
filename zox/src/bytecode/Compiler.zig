@@ -17,12 +17,25 @@ const Error = error{
     TooManyConstants,
     StringToLong,
     ConstantNotFound,
+    TooManyLocals,
 };
 
 const TreeWalker = struct {
     code: std.ArrayList(u8),
     compiler: *Compiler,
-    toplevel: bool,
+    locals: [256][]const u8,
+    locals_count: usize,
+    enclosing: ?*TreeWalker,
+
+    fn init(compiler: *Compiler, enclosing: ?*TreeWalker) TreeWalker {
+        return .{
+            .compiler = compiler,
+            .code = .init(compiler.alloc),
+            .locals = undefined,
+            .locals_count = 0,
+            .enclosing = enclosing,
+        };
+    }
 
     fn traverseStatement(self: *TreeWalker, stmt: *ast.Stmt) !void {
         switch (stmt.*) {
@@ -35,17 +48,37 @@ const TreeWalker = struct {
                 try self.writeOp(.PRINT);
             },
             .var_stmt => |decl| {
-                if (decl.initializer) |init| {
-                    try self.traverseExpression(init);
+                if (decl.initializer) |initializer| {
+                    try self.traverseExpression(initializer);
                 } else {
                     try self.writeOp(.NIL);
                 }
-                const idx = try self.compiler.saveConstant(try String.copyString(decl.name.lexeme, self.compiler.alloc));
-                if (self.toplevel) {
+
+                if (self.enclosing == null) {
+                    const idx = try self.compiler.saveConstant(try String.copyString(decl.name.lexeme, self.compiler.alloc));
                     try self.writeOperand(.GLOBAL_DEFINE, idx);
                 } else {
-                    unreachable; // Locals are not supported yet
+                    self.locals[self.locals_count] = decl.name.lexeme;
+                    self.locals_count += 1;
+                    try self.writeOp(.LOCAL_SET);
                 }
+            },
+            .block => |block| {
+                var walker: TreeWalker = .init(self.compiler, self);
+                defer walker.code.deinit();
+
+                for (block.stmts) |statement| {
+                    try walker.traverseStatement(statement);
+                }
+
+                for (0..walker.locals_count) |_| {
+                    try walker.writeOp(.LOCAL_POP);
+                }
+
+                const code = try walker.code.toOwnedSlice();
+                defer self.compiler.alloc.free(code);
+
+                try self.code.appendSlice(code);
             },
             else => unreachable,
         }
@@ -90,27 +123,65 @@ const TreeWalker = struct {
                     try self.writeOperand(.CONSTANT, idx);
                 },
             },
-            .variable => |variable| {
-                if (self.toplevel) {
-                    var name: String = .{ .value = variable.name.lexeme };
-                    const idx = try self.compiler.getConstant(.{ .string = &name });
-                    try self.writeOperand(.GLOBAL_GET, idx);
-                } else {
-                    unreachable; // Locals are not supported yet
+            .variable => |variable| variable: {
+                if (self.enclosing != null) {
+                    const maybe_idx = try self.resolveLocal(variable.name.lexeme);
+                    if (maybe_idx) |idx| {
+                        try self.writeOperand(.LOCAL_GET, idx);
+                        break :variable;
+                    }
                 }
+                var name: String = .{ .value = variable.name.lexeme };
+                const idx = try self.compiler.getConstant(.{ .string = &name });
+                try self.writeOperand(.GLOBAL_GET, idx);
             },
             .assignment => |assignment| {
-                if (self.toplevel) {
+                if (self.enclosing) |enclosing| {
+                    _ = enclosing; // TODO:
+                } else {
                     var name: String = .{ .value = assignment.name.lexeme };
                     const idx = try self.compiler.getConstant(.{ .string = &name });
                     try self.traverseExpression(assignment.value);
                     try self.writeOperand(.GLOBAL_SET, idx);
-                } else {
-                    unreachable; // Locals are not supported yet
                 }
             },
             else => unreachable,
         }
+    }
+
+    fn resolveLocal(self: *TreeWalker, name: []const u8) !?u8 {
+        var total_idx: usize = 0;
+        var idx: usize = self.locals_count;
+        var enclosing: ?*TreeWalker = self.enclosing;
+        var locals: [256][]const u8 = self.locals;
+
+        while (true) {
+            // TODO: Change this threshhold, if more locals are needed
+            if (total_idx > 255) {
+                return Error.TooManyLocals;
+            }
+
+            const local = locals[idx];
+            if (std.mem.eql(u8, local, name)) {
+                return @intCast(total_idx);
+            }
+
+            if (idx == 0) {
+                if (enclosing == null) {
+                    break;
+                }
+
+                locals = enclosing.?.locals;
+                enclosing = enclosing.?.enclosing;
+                idx = enclosing.?.locals_count;
+            } else {
+                idx -= 1;
+            }
+
+            total_idx += 1;
+        }
+
+        return null;
     }
 
     fn writeOp(self: *TreeWalker, op: Instruction) !void {
@@ -133,18 +204,25 @@ pub fn translate(program: []*ast.Stmt, alloc: Allocator) ![]u8 {
         .program = program,
         .code = .init(alloc),
     };
+    defer compiler.deinit();
     try compiler.compile();
 
     return try compiler.toBytecode();
 }
 
+fn deinit(self: *Compiler) void {
+    for (self.constants, 0..) |constant, i| {
+        if (i >= self.constants_count) {
+            break;
+        }
+        constant.destroy(self.alloc);
+    }
+    self.code.deinit();
+}
+
 fn compile(self: *Compiler) !void {
     for (self.program) |stmt| {
-        var walker: TreeWalker = .{
-            .code = .init(self.alloc),
-            .compiler = self,
-            .toplevel = true,
-        };
+        var walker: TreeWalker = .init(self, null);
         defer walker.code.deinit();
 
         try walker.traverseStatement(stmt);
@@ -153,13 +231,17 @@ fn compile(self: *Compiler) !void {
 
         try self.code.appendSlice(code);
     }
+
+    try self.insertConstants();
 }
 
 fn toBytecode(self: *Compiler) ![]u8 {
-    defer self.code.deinit();
+    return try self.code.toOwnedSlice();
+}
 
-    var complete_code: std.ArrayList(u8) = .init(self.alloc);
-    defer complete_code.deinit();
+fn insertConstants(self: *Compiler) !void {
+    var constants_code: std.ArrayList(u8) = .init(self.alloc);
+    defer constants_code.deinit();
 
     // Convert constants to bytecode
     for (self.constants, 0..) |constant, i| {
@@ -168,32 +250,29 @@ fn toBytecode(self: *Compiler) ![]u8 {
         }
         switch (constant) {
             .number => {
-                try complete_code.append(@intFromEnum(Instruction.NUMBER));
-                try complete_code.appendSlice(&std.mem.toBytes(constant.number));
+                try constants_code.append(@intFromEnum(Instruction.NUMBER));
+                try constants_code.appendSlice(&std.mem.toBytes(constant.number));
             },
             .string => {
-                try complete_code.append(@intFromEnum(Instruction.STRING));
+                try constants_code.append(@intFromEnum(Instruction.STRING));
                 // String length is written into 2 bytes
                 const len = constant.string.value.len;
                 if (len > std.math.maxInt(u16)) {
                     return Error.StringToLong;
                 }
-                try complete_code.append(@intCast((len >> 8) & 0xff));
-                try complete_code.append(@intCast(len & 0xff));
-                try complete_code.appendSlice(constant.string.value);
-                // appendSlice copies the memory, so we can safely free it here
-                constant.destroy(self.alloc);
+                try constants_code.append(@intCast((len >> 8) & 0xff));
+                try constants_code.append(@intCast(len & 0xff));
+                try constants_code.appendSlice(constant.string.value);
             },
             else => @panic("Unsupported constant type"),
         }
     }
 
-    // All Constants are in front of the rest of the code
-    try complete_code.append(@intFromEnum(Instruction.CONSTANTS_DONE));
-    const code = try self.code.toOwnedSlice();
-    defer self.alloc.free(code);
-    try complete_code.appendSlice(code);
-    return try complete_code.toOwnedSlice();
+    try constants_code.append(@intFromEnum(Instruction.CONSTANTS_DONE));
+    const constants_code_raw = try constants_code.toOwnedSlice();
+    defer self.alloc.free(constants_code_raw);
+
+    try self.code.insertSlice(0, constants_code_raw);
 }
 
 fn saveConstant(self: *Compiler, value: Value) !u8 {
