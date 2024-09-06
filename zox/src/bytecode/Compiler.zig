@@ -135,52 +135,41 @@ const TreeWalker = struct {
                 const idx = try self.compiler.getConstant(.{ .string = &name });
                 try self.writeOperand(.GLOBAL_GET, idx);
             },
-            .assignment => |assignment| {
-                if (self.enclosing) |enclosing| {
-                    _ = enclosing; // TODO:
-                } else {
-                    var name: String = .{ .value = assignment.name.lexeme };
-                    const idx = try self.compiler.getConstant(.{ .string = &name });
-                    try self.traverseExpression(assignment.value);
-                    try self.writeOperand(.GLOBAL_SET, idx);
+            .assignment => |assignment| assignment: {
+                try self.traverseExpression(assignment.value);
+                if (self.enclosing != null) {
+                    const maybe_idx = try self.resolveLocal(assignment.name.lexeme);
+                    if (maybe_idx) |idx| {
+                        try self.writeOperand(.LOCAL_SET_AT, idx);
+                        break :assignment;
+                    }
                 }
+                var name: String = .{ .value = assignment.name.lexeme };
+                const idx = try self.compiler.getConstant(.{ .string = &name });
+                try self.writeOperand(.GLOBAL_SET, idx);
             },
             else => unreachable,
         }
     }
 
     fn resolveLocal(self: *TreeWalker, name: []const u8) !?u8 {
-        var total_idx: usize = 0;
-        var idx: usize = self.locals_count;
-        var enclosing: ?*TreeWalker = self.enclosing;
-        var locals: [256][]const u8 = self.locals;
-
-        while (true) {
-            // TODO: Change this threshhold, if more locals are needed
-            if (total_idx > 255) {
-                return Error.TooManyLocals;
-            }
-
-            const local = locals[idx];
-            if (std.mem.eql(u8, local, name)) {
-                return @intCast(total_idx);
-            }
-
-            if (idx == 0) {
-                if (enclosing == null) {
+        if (self.locals_count > 0) {
+            for (self.locals, 0..) |local, i| {
+                if (i >= self.locals_count) {
                     break;
                 }
-
-                locals = enclosing.?.locals;
-                enclosing = enclosing.?.enclosing;
-                idx = enclosing.?.locals_count;
-            } else {
-                idx -= 1;
+                if (std.mem.eql(u8, local, name)) {
+                    return @intCast(self.locals_count - i);
+                }
             }
-
-            total_idx += 1;
         }
 
+        if (self.enclosing) |enclosing| {
+            const maybe_index = try enclosing.resolveLocal(name);
+            if (maybe_index) |idx| {
+                return @intCast(self.locals_count + idx);
+            }
+        }
         return null;
     }
 

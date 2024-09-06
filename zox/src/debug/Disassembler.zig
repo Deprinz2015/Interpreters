@@ -102,6 +102,7 @@ pub fn print(self: *Disassembler) !void {
             .GLOBAL_SET => self.constantInstruction("OP_GLOBAL_SET"),
             .LOCAL_GET => self.operandInstruction("OP_LOCAL_GET"),
             .LOCAL_SET => self.simpleInstruction("OP_LOCAL_SET"),
+            .LOCAL_SET_AT => self.operandInstruction("OP_LOCAL_SET_AT"),
             .LOCAL_POP => self.simpleInstruction("OP_LOCAL_POP"),
         }
     }

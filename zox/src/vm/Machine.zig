@@ -173,6 +173,12 @@ fn run(self: *VM) !void {
             .LOCAL_SET => {
                 self.pushLocal(self.pop());
             },
+            .LOCAL_SET_AT => {
+                const idx = self.readByte();
+                const value = self.pop();
+                self.setLocalAt(idx, value);
+                try self.push(value);
+            },
         }
         // @import("../debug/Stack.zig").print(self.stack, self.stack_top);
     }
@@ -239,6 +245,10 @@ fn push(self: *VM, value: Value) !void {
 
 fn localAt(self: *VM, idx: usize) Value {
     return self.locals[self.locals_count - idx];
+}
+
+fn setLocalAt(self: *VM, idx: usize, value: Value) void {
+    self.locals[self.locals_count - idx] = value;
 }
 
 fn pushLocal(self: *VM, value: Value) void {
