@@ -95,6 +95,7 @@ fn run(self: *VM) !void {
     while (self.ip < self.code.len) {
         const byte = self.readByte();
         const instruction: Instruction = @enumFromInt(byte);
+        // TODO: When adding GC, go through everpart where a value is popped and check for unexpected frees
         switch (instruction) {
             .NUMBER, .STRING, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
             .POP => _ = self.pop(),
@@ -156,9 +157,7 @@ fn run(self: *VM) !void {
                     unreachable;
                 }
                 if (self.globals.get(name.string.value)) |_| {
-                    const value = self.pop();
-                    try self.globals.put(name.string.value, value);
-                    try self.push(value);
+                    try self.globals.put(name.string.value, self.peek(0));
                 } else {
                     // undefined global
                     // TODO: This needs to be better handled
@@ -175,9 +174,17 @@ fn run(self: *VM) !void {
             },
             .LOCAL_SET_AT => {
                 const idx = self.readByte();
-                const value = self.pop();
-                self.setLocalAt(idx, value);
-                try self.push(value);
+                self.setLocalAt(idx, self.peek(0));
+            },
+            .JUMP => {
+                const jump = self.readShort();
+                self.ip += jump;
+            },
+            .JUMP_IF_FALSE => {
+                const jump = self.readShort();
+                if (self.peek(0).isFalsey()) {
+                    self.ip += jump;
+                }
             },
         }
         // @import("../debug/Stack.zig").print(self.stack, self.stack_top);
@@ -224,6 +231,17 @@ fn readByte(self: *VM) u8 {
     const byte = self.code[self.ip];
     self.ip += 1;
     return byte;
+}
+
+fn readShort(self: *VM) u16 {
+    const lhs: u16 = @intCast(self.code[self.ip]);
+    const rhs: u16 = @intCast(self.code[self.ip + 1]);
+    self.ip += 2;
+    return (lhs << 8) | rhs;
+}
+
+fn peek(self: *VM, idx: usize) Value {
+    return self.stack[self.stack_top - 1 - idx];
 }
 
 fn pop(self: *VM) Value {

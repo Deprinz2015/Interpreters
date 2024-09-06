@@ -18,6 +18,7 @@ const Error = error{
     StringToLong,
     ConstantNotFound,
     TooManyLocals,
+    JumpTooBig,
 };
 
 const TreeWalker = struct {
@@ -79,6 +80,22 @@ const TreeWalker = struct {
                 defer self.compiler.alloc.free(code);
 
                 try self.code.appendSlice(code);
+            },
+            .if_stmt => |if_stmt| {
+                try self.traverseExpression(if_stmt.condition);
+
+                const then = try self.writeJump(.JUMP_IF_FALSE);
+                try self.writeOp(.POP);
+                try self.traverseStatement(if_stmt.statement);
+
+                const skip_else = try self.writeJump(.JUMP);
+                try self.patchJump(then);
+                try self.writeOp(.POP);
+
+                if (if_stmt.else_stmt) |else_branch| {
+                    try self.traverseStatement(else_branch);
+                }
+                try self.patchJump(skip_else);
             },
             else => unreachable,
         }
@@ -184,6 +201,24 @@ const TreeWalker = struct {
     fn writeOperand(self: *TreeWalker, op: Instruction, operand: u8) !void {
         try self.writeOp(op);
         try self.writeByte(operand);
+    }
+
+    fn writeJump(self: *TreeWalker, jump: Instruction) !usize {
+        try self.writeOp(jump);
+        try self.writeByte(0xff);
+        try self.writeByte(0xff);
+        return self.code.items.len - 2;
+    }
+
+    fn patchJump(self: *TreeWalker, jump_idx: usize) !void {
+        const jump = self.code.items.len - jump_idx - 2;
+
+        if (jump > std.math.maxInt(u16)) {
+            return Error.JumpTooBig;
+        }
+
+        self.code.items[jump_idx] = @intCast((jump >> 8) & 0xff);
+        self.code.items[jump_idx + 1] = @intCast(jump & 0xff);
     }
 };
 

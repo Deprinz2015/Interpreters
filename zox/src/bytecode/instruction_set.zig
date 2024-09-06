@@ -28,4 +28,6 @@ pub const Instruction = enum(u8) {
     LOCAL_POP,
     POP,
     PRINT,
+    JUMP,
+    JUMP_IF_FALSE,
 };

@@ -1,0 +1,8 @@
+var change = true;
+
+if (change) {
+    print "inside if";
+}
+else {
+    print "inside else";
+}
