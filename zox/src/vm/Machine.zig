@@ -180,6 +180,10 @@ fn run(self: *VM) !void {
                 const jump = self.readShort();
                 self.ip += jump;
             },
+            .JUMP_BACK => {
+                const jump = self.readShort();
+                self.ip -= jump;
+            },
             .JUMP_IF_FALSE => {
                 const jump = self.readShort();
                 if (self.peek(0).isFalsey()) {

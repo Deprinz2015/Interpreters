@@ -104,9 +104,10 @@ pub fn print(self: *Disassembler) !void {
             .LOCAL_SET => self.simpleInstruction("OP_LOCAL_SET"),
             .LOCAL_SET_AT => self.operandInstruction("OP_LOCAL_SET_AT"),
             .LOCAL_POP => self.simpleInstruction("OP_LOCAL_POP"),
-            .JUMP => self.jumpInstruction("OP_JUMP"),
-            .JUMP_IF_FALSE => self.jumpInstruction("OP_JUMP_IF_FALSE"),
-            .JUMP_IF_TRUE => self.jumpInstruction("OP_JUMP_IF_TRUE"),
+            .JUMP => self.jumpInstruction("OP_JUMP", true),
+            .JUMP_IF_FALSE => self.jumpInstruction("OP_JUMP_IF_FALSE", true),
+            .JUMP_IF_TRUE => self.jumpInstruction("OP_JUMP_IF_TRUE", true),
+            .JUMP_BACK => self.jumpInstruction("OP_JUMP_BACK", false),
         }
     }
 }
@@ -155,13 +156,17 @@ fn valueInstruction(self: *Disassembler, name: []const u8, value_type: std.meta.
     self.ip += new_ip + 1;
 }
 
-fn jumpInstruction(self: *Disassembler, name: []const u8) void {
+fn jumpInstruction(self: *Disassembler, name: []const u8, forwards: bool) void {
     std.debug.print("{s: <24} ", .{name});
     const jump_to = jump_to: {
         const lhs: u16 = @intCast(self.code[self.ip + 1]);
         const rhs: u16 = @intCast(self.code[self.ip + 2]);
         break :jump_to (lhs << 8) | rhs;
     };
-    std.debug.print("-> {x:0>4} ({d})\n", .{ self.ip + 2 + jump_to, jump_to });
+    if (forwards) {
+        std.debug.print("-> {x:0>4} ({d})\n", .{ self.ip + 2 + jump_to, jump_to });
+    } else {
+        std.debug.print("-> {x:0>4} ({d})\n", .{ self.ip + 2 - jump_to, jump_to });
+    }
     self.ip += 3;
 }

@@ -98,6 +98,16 @@ const TreeWalker = struct {
                 }
                 try self.patchJump(skip_else);
             },
+            .while_stmt => |while_stmt| {
+                const loop_start = self.code.items.len;
+                try self.traverseExpression(while_stmt.condition);
+                const exit = try self.writeJump(.JUMP_IF_FALSE);
+                try self.writeOp(.POP);
+                try self.traverseStatement(while_stmt.statement);
+                try self.writeJumpComplete(.JUMP_BACK, self.code.items.len + 3 - loop_start);
+                try self.patchJump(exit);
+                try self.writeOp(.POP);
+            },
             else => unreachable,
         }
     }
@@ -221,6 +231,16 @@ const TreeWalker = struct {
         try self.writeByte(0xff);
         try self.writeByte(0xff);
         return self.code.items.len - 2;
+    }
+
+    fn writeJumpComplete(self: *TreeWalker, jump: Instruction, idx: usize) !void {
+        if (idx > std.math.maxInt(u16)) {
+            return Error.JumpTooBig;
+        }
+
+        try self.writeOp(jump);
+        try self.writeByte(@intCast((idx >> 8) & 0xff));
+        try self.writeByte(@intCast(idx & 0xff));
     }
 
     fn patchJump(self: *TreeWalker, jump_idx: usize) !void {
