@@ -148,3 +148,8 @@ pub const Scoping = struct {
         scope.deinit();
     }
 };
+
+// TODO: Arity
+// In every call expression, if it is statically known, ie a simple identifier,
+// Check for the existing function and check the arity
+// Check native functions, as well as user space functions
