@@ -87,6 +87,7 @@ fn function(self: *Parser) !*ast.Stmt {
     if (!self.check(.@")")) {
         while (true) {
             if (parameters.items.len > 255) {
+                printError("A function can only expect a maximum of 255 parameters.", .{});
                 return Error.TooManyParameters;
             }
 
@@ -365,6 +366,7 @@ fn call(self: *Parser) Error!*ast.Expr {
 
     while (true) {
         if (arguments.items.len > 255) {
+            printError("A function can accept a maximum of 255 arguments", .{});
             return Error.TooManyArguments;
         }
         const argument = try self.expression();
