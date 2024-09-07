@@ -106,6 +106,7 @@ pub fn print(self: *Disassembler) !void {
             .LOCAL_POP => self.simpleInstruction("OP_LOCAL_POP"),
             .JUMP => self.jumpInstruction("OP_JUMP"),
             .JUMP_IF_FALSE => self.jumpInstruction("OP_JUMP_IF_FALSE"),
+            .JUMP_IF_TRUE => self.jumpInstruction("OP_JUMP_IF_TRUE"),
         }
     }
 }

@@ -186,6 +186,12 @@ fn run(self: *VM) !void {
                     self.ip += jump;
                 }
             },
+            .JUMP_IF_TRUE => {
+                const jump = self.readShort();
+                if (!self.peek(0).isFalsey()) {
+                    self.ip += jump;
+                }
+            },
         }
         // @import("../debug/Stack.zig").print(self.stack, self.stack_top);
     }

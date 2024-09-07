@@ -1,0 +1,20 @@
+var test = "Before";
+
+print test;
+
+true and (test = "TRUE AND");
+
+print test;
+
+true or (test = "TRUE OR");
+
+print test;
+
+false and (test = "FALSE AND");
+
+print test;
+
+false or (test = "FALSE OR");
+
+print test;
+

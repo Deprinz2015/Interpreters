@@ -21,6 +21,7 @@ const Error = error{
     JumpTooBig,
 };
 
+// TODO: Extract some functions out for readability?
 const TreeWalker = struct {
     code: std.ArrayList(u8),
     compiler: *Compiler,
@@ -164,6 +165,18 @@ const TreeWalker = struct {
                 var name: String = .{ .value = assignment.name.lexeme };
                 const idx = try self.compiler.getConstant(.{ .string = &name });
                 try self.writeOperand(.GLOBAL_SET, idx);
+            },
+            .logical => |logical| {
+                try self.traverseExpression(logical.left);
+                const jump_type: Instruction = switch (logical.op.type) {
+                    .AND => .JUMP_IF_FALSE,
+                    .OR => .JUMP_IF_TRUE,
+                    else => unreachable,
+                };
+                const jump = try self.writeJump(jump_type);
+                try self.writeOp(.POP);
+                try self.traverseExpression(logical.right);
+                try self.patchJump(jump);
             },
             else => unreachable,
         }
