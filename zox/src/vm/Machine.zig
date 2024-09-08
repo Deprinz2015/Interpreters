@@ -15,6 +15,7 @@ constants_count: usize,
 globals: std.StringHashMap(Value),
 locals: [256]Value,
 locals_count: usize,
+strings: std.StringHashMap(void),
 code: []const u8,
 ip: usize,
 stack: []Value,
@@ -36,6 +37,7 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
         .constants_count = 0,
         .locals = undefined,
         .locals_count = 0,
+        .strings = .init(alloc),
         .globals = .init(alloc),
         .code = program,
         .ip = 0,
@@ -53,13 +55,37 @@ pub fn deinit(self: *VM) void {
             break;
         }
 
-        value.destroy(self.alloc);
+        if (value == .string) {
+            if (self.strings.get(value.string.value) == null) {
+                self.alloc.free(value.string.value);
+            }
+            self.alloc.destroy(value.string);
+        }
     }
+
+    var string_iter = self.strings.keyIterator();
+    while (string_iter.next()) |string| {
+        self.alloc.free(string.*);
+    }
+    self.strings.deinit();
 }
 
 pub fn execute(self: *VM) !void {
     try self.loadConstants();
     try self.run();
+}
+
+/// Interns the given string.
+/// If it is not yet existent, adds it to set and returns it as is.
+/// Otherwise frees the memory of the passed string and returns the already saved string. Usage of the passed string is not safe.
+fn internString(self: *VM, string: []const u8) ![]const u8 {
+    if (self.strings.getKey(string)) |interned_string| {
+        self.alloc.free(string);
+        return interned_string;
+    }
+
+    try self.strings.put(string, undefined);
+    return string;
 }
 
 fn loadConstants(self: *VM) !void {
@@ -86,7 +112,9 @@ fn loadConstants(self: *VM) !void {
                 };
 
                 const value = self.code[idx + 3 .. idx + 3 + len];
-                self.constants[self.constants_count] = try Value.String.copyString(value, self.alloc);
+                const string = try Value.String.copyString(value, self.alloc);
+                self.constants[self.constants_count] = string;
+                try self.strings.put(string.string.value, undefined);
                 self.constants_count += 1;
                 idx += 1 + 2 + len; // 1 for instruction, 2 for len, len of string
             },
@@ -115,8 +143,19 @@ fn run(self: *VM) !void {
                 }
                 try self.push(.{ .number = value.number * -1 });
             },
-            .ADD, .SUB, .MUL, .DIV => try self.binaryOp(instruction),
-            .EQUAL, .NOT_EQUAL, .LESS, .LESS_EQUAL, .GREATER, .GREATER_EQUAL => try self.equalityOp(instruction),
+            .ADD => {
+                const right = self.peek(0);
+                const left = self.peek(1);
+
+                if (right == .number and left == .number) {
+                    try self.binaryOp(instruction);
+                } else {
+                    try self.concat();
+                }
+            },
+            .SUB, .MUL, .DIV => try self.binaryOp(instruction),
+            .EQUAL, .NOT_EQUAL => try self.equalityOp(instruction),
+            .LESS, .LESS_EQUAL, .GREATER, .GREATER_EQUAL => try self.comparisonOp(instruction),
             .CONSTANT => {
                 const idx = self.readByte();
                 try self.push(self.constants[idx]);
@@ -200,12 +239,27 @@ fn run(self: *VM) !void {
     }
 }
 
+fn concat(self: *VM) !void {
+    const right = self.pop();
+    const left = self.pop();
+
+    if (left != .string and right != .string) {
+        try self.runtimeError("Add Operation can only be performed on two numbers or at least one string. Got '{s}' and '{s}'", .{ left.typeName(), right.typeName() });
+        return Error.TypeError;
+    }
+
+    const concatted = try std.fmt.allocPrint(self.alloc, "{}{}", .{ left, right });
+    const interned = try self.internString(concatted);
+    const result = try Value.String.takeString(interned, self.alloc);
+    try self.push(result);
+}
+
 fn binaryOp(self: *VM, op: Instruction) !void {
     const right = self.pop();
     const left = self.pop();
 
     if (left != .number or right != .number) {
-        try self.runtimeError("Binary operation expects operands to be of type number. Got {} and {}", .{ std.meta.activeTag(left), std.meta.activeTag(right) });
+        try self.runtimeError("Binary operation expects operands to be of type number. Got {s} and {s}", .{ left.typeName(), right.typeName() });
         return Error.TypeError;
     }
 
@@ -223,11 +277,30 @@ fn equalityOp(self: *VM, op: Instruction) !void {
     const right = self.pop();
     const left = self.pop();
 
-    // TODO: Type check for less and greater operations
-
     const result = switch (op) {
         .EQUAL => left.equals(right),
         .NOT_EQUAL => !left.equals(right),
+        else => unreachable,
+    };
+
+    try self.push(.{ .boolean = result });
+}
+
+fn comparisonOp(self: *VM, op: Instruction) !void {
+    const right = self.pop();
+    const left = self.pop();
+
+    if (right != .number) {
+        try self.runtimeError("Comparison Operator expects right operand to be number. Found '{}' of type '{s}'.", .{ right, right.typeName() });
+        return Error.TypeError;
+    }
+
+    if (left != .number) {
+        try self.runtimeError("Comparison Operator expects left operand to be number. Found '{}' of type '{s}'.", .{ left, left.typeName() });
+        return Error.TypeError;
+    }
+
+    const result = switch (op) {
         .LESS => left.number < right.number,
         .LESS_EQUAL => left.number <= right.number,
         .GREATER => left.number > right.number,
@@ -297,4 +370,5 @@ fn printLiteral(str: []const u8) !void {
 fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) !void {
     self.has_error = true;
     StdErr.print(format, args) catch return Error.IOError;
+    StdErr.writeAll("\n") catch return Error.IOError;
 }

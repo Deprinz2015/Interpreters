@@ -144,5 +144,7 @@ fn compile(alloc: Allocator, input: []const u8, print_ast: bool) ![]u8 {
 fn run(alloc: Allocator, bytecode: []const u8) !void {
     var vm: VM = try .init(alloc, bytecode);
     defer vm.deinit();
-    try vm.execute();
+    vm.execute() catch {
+        std.io.getStdErr().writeAll("Runtime Error\n") catch {};
+    };
 }

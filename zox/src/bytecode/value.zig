@@ -7,11 +7,13 @@ pub const Value = union(enum) {
     nil: void,
     string: *String,
 
-    pub fn destroy(self: Value, alloc: Allocator) void {
-        if (self == .string) {
-            alloc.free(self.string.value);
-            alloc.destroy(self.string);
-        }
+    pub fn typeName(value: Value) []const u8 {
+        return switch (value) {
+            .string => "string",
+            .number => "number",
+            .nil => "nil",
+            .boolean => "boolean",
+        };
     }
 
     pub fn equals(this: Value, that: Value) bool {
@@ -54,6 +56,12 @@ pub const Value = union(enum) {
             const copied = try alloc.dupe(u8, str);
             const str_obj = try alloc.create(String);
             str_obj.* = .{ .value = copied };
+            return .{ .string = str_obj };
+        }
+
+        pub fn takeString(str: []const u8, alloc: Allocator) !Value {
+            const str_obj = try alloc.create(String);
+            str_obj.* = .{ .value = str };
             return .{ .string = str_obj };
         }
     };

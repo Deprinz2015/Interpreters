@@ -297,12 +297,19 @@ pub fn translate(program: []*ast.Stmt, alloc: Allocator) ![]u8 {
     return try compiler.toBytecode();
 }
 
+fn destroyValue(self: *Compiler, value: Value) void {
+    if (value == .string) {
+        self.alloc.free(value.string.value);
+        self.alloc.destroy(value.string);
+    }
+}
+
 fn deinit(self: *Compiler) void {
     for (self.constants, 0..) |constant, i| {
         if (i >= self.constants_count) {
             break;
         }
-        constant.destroy(self.alloc);
+        self.destroyValue(constant);
     }
     self.code.deinit();
 }
@@ -378,7 +385,7 @@ fn saveConstant(self: *Compiler, value: Value) !u8 {
 
         if (constant == .string and value == .string) {
             if (std.mem.eql(u8, constant.string.value, value.string.value)) {
-                value.destroy(self.alloc);
+                self.destroyValue(value);
                 return @intCast(i);
             }
         }
