@@ -39,30 +39,34 @@ const TreeWalker = struct {
         };
     }
 
-    fn traverseStatement(self: *TreeWalker, stmt: *ast.Stmt) !void {
+    fn traverseStatement(self: *TreeWalker, stmt: *ast.Stmt) void {
         switch (stmt.*) {
             .expression => {
-                try self.traverseExpression(stmt.expression.expr);
-                try self.writeOp(.POP);
+                self.traverseExpression(stmt.expression.expr);
+                self.writeOp(.POP);
             },
             .print => {
-                try self.traverseExpression(stmt.print.expr);
-                try self.writeOp(.PRINT);
+                self.traverseExpression(stmt.print.expr);
+                self.writeOp(.PRINT);
             },
             .var_stmt => |decl| {
                 if (decl.initializer) |initializer| {
-                    try self.traverseExpression(initializer);
+                    self.traverseExpression(initializer);
                 } else {
-                    try self.writeOp(.NIL);
+                    self.writeOp(.NIL);
                 }
 
                 if (self.enclosing == null) {
-                    const idx = try self.compiler.saveConstant(try String.copyString(decl.name.lexeme, self.compiler.alloc));
-                    try self.writeOperand(.GLOBAL_DEFINE, idx);
+                    const string = String.copyString(decl.name.lexeme, self.compiler.alloc) catch @panic("Out of Memory");
+                    const idx = self.compiler.saveConstant(string) catch {
+                        // TODO: error msg
+                        return;
+                    };
+                    self.writeOperand(.GLOBAL_DEFINE, idx);
                 } else {
                     self.locals[self.locals_count] = decl.name.lexeme;
                     self.locals_count += 1;
-                    try self.writeOp(.LOCAL_SET);
+                    self.writeOp(.LOCAL_SET);
                 }
             },
             .block => |block| {
@@ -70,129 +74,142 @@ const TreeWalker = struct {
                 defer walker.code.deinit();
 
                 for (block.stmts) |statement| {
-                    try walker.traverseStatement(statement);
+                    walker.traverseStatement(statement);
                 }
 
                 for (0..walker.locals_count) |_| {
-                    try walker.writeOp(.LOCAL_POP);
+                    walker.writeOp(.LOCAL_POP);
                 }
 
-                const code = try walker.code.toOwnedSlice();
+                const code = walker.code.toOwnedSlice() catch @panic("Out of Memory");
                 defer self.compiler.alloc.free(code);
 
-                try self.code.appendSlice(code);
+                self.code.appendSlice(code) catch @panic("Out of Memory");
             },
             .if_stmt => |if_stmt| {
-                try self.traverseExpression(if_stmt.condition);
+                self.traverseExpression(if_stmt.condition);
 
-                const then = try self.writeJump(.JUMP_IF_FALSE);
-                try self.writeOp(.POP);
-                try self.traverseStatement(if_stmt.statement);
+                const then = self.writeJump(.JUMP_IF_FALSE);
+                self.writeOp(.POP);
+                self.traverseStatement(if_stmt.statement);
 
-                const skip_else = try self.writeJump(.JUMP);
-                try self.patchJump(then);
-                try self.writeOp(.POP);
+                const skip_else = self.writeJump(.JUMP);
+                self.patchJump(then);
+                self.writeOp(.POP);
 
                 if (if_stmt.else_stmt) |else_branch| {
-                    try self.traverseStatement(else_branch);
+                    self.traverseStatement(else_branch);
                 }
-                try self.patchJump(skip_else);
+                self.patchJump(skip_else);
             },
             .while_stmt => |while_stmt| {
                 const loop_start = self.code.items.len;
-                try self.traverseExpression(while_stmt.condition);
-                const exit = try self.writeJump(.JUMP_IF_FALSE);
-                try self.writeOp(.POP);
-                try self.traverseStatement(while_stmt.statement);
-                try self.writeJumpComplete(.JUMP_BACK, self.code.items.len + 3 - loop_start);
-                try self.patchJump(exit);
-                try self.writeOp(.POP);
+                self.traverseExpression(while_stmt.condition);
+                const exit = self.writeJump(.JUMP_IF_FALSE);
+                self.writeOp(.POP);
+                self.traverseStatement(while_stmt.statement);
+                self.writeJumpComplete(.JUMP_BACK, self.code.items.len + 3 - loop_start);
+                self.patchJump(exit);
+                self.writeOp(.POP);
             },
             else => unreachable,
         }
     }
 
-    fn traverseExpression(self: *TreeWalker, expr: *ast.Expr) !void {
+    fn traverseExpression(self: *TreeWalker, expr: *ast.Expr) void {
         switch (expr.*) {
             .unary => |unary| {
-                try self.traverseExpression(unary.expr);
+                self.traverseExpression(unary.expr);
                 switch (unary.op.type) {
-                    .@"!" => try self.writeOp(.NOT),
-                    .@"-" => try self.writeOp(.NEGATE),
+                    .@"!" => self.writeOp(.NOT),
+                    .@"-" => self.writeOp(.NEGATE),
                     else => unreachable,
                 }
             },
             .binary => |binary| {
-                try self.traverseExpression(binary.left);
-                try self.traverseExpression(binary.right);
+                self.traverseExpression(binary.left);
+                self.traverseExpression(binary.right);
                 switch (binary.op.type) {
-                    .@"+" => try self.writeOp(.ADD),
-                    .@"-" => try self.writeOp(.SUB),
-                    .@"*" => try self.writeOp(.MUL),
-                    .@"/" => try self.writeOp(.DIV),
-                    .@"==" => try self.writeOp(.EQUAL),
-                    .@"!=" => try self.writeOp(.NOT_EQUAL),
-                    .@"<" => try self.writeOp(.LESS),
-                    .@"<=" => try self.writeOp(.LESS_EQUAL),
-                    .@">" => try self.writeOp(.GREATER),
-                    .@">=" => try self.writeOp(.GREATER_EQUAL),
+                    .@"+" => self.writeOp(.ADD),
+                    .@"-" => self.writeOp(.SUB),
+                    .@"*" => self.writeOp(.MUL),
+                    .@"/" => self.writeOp(.DIV),
+                    .@"==" => self.writeOp(.EQUAL),
+                    .@"!=" => self.writeOp(.NOT_EQUAL),
+                    .@"<" => self.writeOp(.LESS),
+                    .@"<=" => self.writeOp(.LESS_EQUAL),
+                    .@">" => self.writeOp(.GREATER),
+                    .@">=" => self.writeOp(.GREATER_EQUAL),
                     else => unreachable,
                 }
             },
             .literal => |literal| switch (literal.value) {
                 .number => |num| {
-                    const idx = try self.compiler.saveConstant(.{ .number = num });
-                    try self.writeOperand(.CONSTANT, idx);
+                    const idx = self.compiler.saveConstant(.{ .number = num }) catch {
+                        // TODO: Error msg
+                        return;
+                    };
+                    self.writeOperand(.CONSTANT, idx);
                 },
-                .boolean => |b| try self.writeOp(if (b) .TRUE else .FALSE),
-                .nil => try self.writeOp(.NIL),
+                .boolean => |b| self.writeOp(if (b) .TRUE else .FALSE),
+                .nil => self.writeOp(.NIL),
                 .string => |str| {
-                    const idx = try self.compiler.saveConstant(try String.copyString(str, self.compiler.alloc));
-                    try self.writeOperand(.CONSTANT, idx);
+                    const string = String.copyString(str, self.compiler.alloc) catch @panic("Out of Memory");
+                    const idx = self.compiler.saveConstant(string) catch {
+                        // TODO: Error msg
+                        return;
+                    };
+                    self.writeOperand(.CONSTANT, idx);
                 },
             },
             .variable => |variable| variable: {
                 if (self.enclosing != null) {
-                    const maybe_idx = try self.resolveLocal(variable.name.lexeme);
+                    const maybe_idx = self.resolveLocal(variable.name.lexeme);
                     if (maybe_idx) |idx| {
-                        try self.writeOperand(.LOCAL_GET, idx);
+                        self.writeOperand(.LOCAL_GET, idx);
                         break :variable;
                     }
                 }
                 var name: String = .{ .value = variable.name.lexeme };
-                const idx = try self.compiler.getConstant(.{ .string = &name });
-                try self.writeOperand(.GLOBAL_GET, idx);
+                const idx = self.compiler.getConstant(.{ .string = &name }) catch {
+                    // TODO: Error msg
+                    return;
+                };
+                self.writeOperand(.GLOBAL_GET, idx);
             },
             .assignment => |assignment| assignment: {
-                try self.traverseExpression(assignment.value);
+                self.traverseExpression(assignment.value);
                 if (self.enclosing != null) {
-                    const maybe_idx = try self.resolveLocal(assignment.name.lexeme);
+                    const maybe_idx = self.resolveLocal(assignment.name.lexeme);
                     if (maybe_idx) |idx| {
-                        try self.writeOperand(.LOCAL_SET_AT, idx);
+                        self.writeOperand(.LOCAL_SET_AT, idx);
                         break :assignment;
                     }
                 }
                 var name: String = .{ .value = assignment.name.lexeme };
-                const idx = try self.compiler.getConstant(.{ .string = &name });
-                try self.writeOperand(.GLOBAL_SET, idx);
+                const idx = self.compiler.getConstant(.{ .string = &name }) catch {
+                    // TODO: error msg
+                    return;
+                };
+                self.writeOperand(.GLOBAL_SET, idx);
             },
             .logical => |logical| {
-                try self.traverseExpression(logical.left);
+                self.traverseExpression(logical.left);
                 const jump_type: Instruction = switch (logical.op.type) {
                     .AND => .JUMP_IF_FALSE,
                     .OR => .JUMP_IF_TRUE,
                     else => unreachable,
                 };
-                const jump = try self.writeJump(jump_type);
-                try self.writeOp(.POP);
-                try self.traverseExpression(logical.right);
-                try self.patchJump(jump);
+                const jump = self.writeJump(jump_type);
+                self.writeOp(.POP);
+                self.traverseExpression(logical.right);
+                self.patchJump(jump);
             },
             else => unreachable,
         }
     }
 
-    fn resolveLocal(self: *TreeWalker, name: []const u8) !?u8 {
+    fn resolveLocal(self: *TreeWalker, name: []const u8) ?u8 {
         if (self.locals_count > 0) {
             for (self.locals, 0..) |local, i| {
                 if (i >= self.locals_count) {
@@ -205,7 +222,7 @@ const TreeWalker = struct {
         }
 
         if (self.enclosing) |enclosing| {
-            const maybe_index = try enclosing.resolveLocal(name);
+            const maybe_index = enclosing.resolveLocal(name);
             if (maybe_index) |idx| {
                 return @intCast(self.locals_count + idx);
             }
@@ -213,41 +230,41 @@ const TreeWalker = struct {
         return null;
     }
 
-    fn writeOp(self: *TreeWalker, op: Instruction) !void {
-        try self.writeByte(@intFromEnum(op));
+    fn writeOp(self: *TreeWalker, op: Instruction) void {
+        self.writeByte(@intFromEnum(op));
     }
 
-    fn writeByte(self: *TreeWalker, byte: u8) !void {
-        try self.code.append(byte);
+    fn writeByte(self: *TreeWalker, byte: u8) void {
+        self.code.append(byte) catch @panic("Out of Memory");
     }
 
-    fn writeOperand(self: *TreeWalker, op: Instruction, operand: u8) !void {
-        try self.writeOp(op);
-        try self.writeByte(operand);
+    fn writeOperand(self: *TreeWalker, op: Instruction, operand: u8) void {
+        self.writeOp(op);
+        self.writeByte(operand);
     }
 
-    fn writeJump(self: *TreeWalker, jump: Instruction) !usize {
-        try self.writeOp(jump);
-        try self.writeByte(0xff);
-        try self.writeByte(0xff);
+    fn writeJump(self: *TreeWalker, jump: Instruction) usize {
+        self.writeOp(jump);
+        self.writeByte(0xff);
+        self.writeByte(0xff);
         return self.code.items.len - 2;
     }
 
-    fn writeJumpComplete(self: *TreeWalker, jump: Instruction, idx: usize) !void {
+    fn writeJumpComplete(self: *TreeWalker, jump: Instruction, idx: usize) void {
         if (idx > std.math.maxInt(u16)) {
-            return Error.JumpTooBig;
+            // TODO: error msg
         }
 
-        try self.writeOp(jump);
-        try self.writeByte(@intCast((idx >> 8) & 0xff));
-        try self.writeByte(@intCast(idx & 0xff));
+        self.writeOp(jump);
+        self.writeByte(@intCast((idx >> 8) & 0xff));
+        self.writeByte(@intCast(idx & 0xff));
     }
 
-    fn patchJump(self: *TreeWalker, jump_idx: usize) !void {
+    fn patchJump(self: *TreeWalker, jump_idx: usize) void {
         const jump = self.code.items.len - jump_idx - 2;
 
         if (jump > std.math.maxInt(u16)) {
-            return Error.JumpTooBig;
+            // TODO: error msg
         }
 
         self.code.items[jump_idx] = @intCast((jump >> 8) & 0xff);
@@ -282,7 +299,7 @@ fn compile(self: *Compiler) !void {
         var walker: TreeWalker = .init(self, null);
         defer walker.code.deinit();
 
-        try walker.traverseStatement(stmt);
+        walker.traverseStatement(stmt);
         const code = try walker.code.toOwnedSlice();
         defer self.alloc.free(code);
 
