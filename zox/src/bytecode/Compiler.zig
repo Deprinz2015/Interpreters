@@ -12,6 +12,7 @@ constants: [256]Value = undefined, // Max 256 constants are allowed
 constants_count: usize = 0,
 alloc: Allocator,
 program: []*ast.Stmt,
+has_error: bool = false,
 
 const Error = error{
     TooManyConstants,
@@ -19,6 +20,7 @@ const Error = error{
     ConstantNotFound,
     TooManyLocals,
     JumpTooBig,
+    CompileError,
 };
 
 // TODO: Extract some functions out for readability?
@@ -59,7 +61,8 @@ const TreeWalker = struct {
                 if (self.enclosing == null) {
                     const string = String.copyString(decl.name.lexeme, self.compiler.alloc) catch @panic("Out of Memory");
                     const idx = self.compiler.saveConstant(string) catch {
-                        // TODO: error msg
+                        printError("Could not save constant string '{s}'", .{decl.name.lexeme});
+                        self.compiler.has_error = true;
                         return;
                     };
                     self.writeOperand(.GLOBAL_DEFINE, idx);
@@ -146,7 +149,8 @@ const TreeWalker = struct {
             .literal => |literal| switch (literal.value) {
                 .number => |num| {
                     const idx = self.compiler.saveConstant(.{ .number = num }) catch {
-                        // TODO: Error msg
+                        printError("Could not save constant number '{d}'", .{num});
+                        self.compiler.has_error = true;
                         return;
                     };
                     self.writeOperand(.CONSTANT, idx);
@@ -156,7 +160,8 @@ const TreeWalker = struct {
                 .string => |str| {
                     const string = String.copyString(str, self.compiler.alloc) catch @panic("Out of Memory");
                     const idx = self.compiler.saveConstant(string) catch {
-                        // TODO: Error msg
+                        printError("Could not save constant string '{s}'", .{str});
+                        self.compiler.has_error = true;
                         return;
                     };
                     self.writeOperand(.CONSTANT, idx);
@@ -172,7 +177,8 @@ const TreeWalker = struct {
                 }
                 var name: String = .{ .value = variable.name.lexeme };
                 const idx = self.compiler.getConstant(.{ .string = &name }) catch {
-                    // TODO: Error msg
+                    printError("Could not find constant string '{s}'", .{name.value});
+                    self.compiler.has_error = true;
                     return;
                 };
                 self.writeOperand(.GLOBAL_GET, idx);
@@ -188,7 +194,8 @@ const TreeWalker = struct {
                 }
                 var name: String = .{ .value = assignment.name.lexeme };
                 const idx = self.compiler.getConstant(.{ .string = &name }) catch {
-                    // TODO: error msg
+                    printError("Could not find constant string '{s}'", .{name.value});
+                    self.compiler.has_error = true;
                     return;
                 };
                 self.writeOperand(.GLOBAL_SET, idx);
@@ -252,7 +259,8 @@ const TreeWalker = struct {
 
     fn writeJumpComplete(self: *TreeWalker, jump: Instruction, idx: usize) void {
         if (idx > std.math.maxInt(u16)) {
-            // TODO: error msg
+            printError("Too much code to jump: {d}", .{idx});
+            self.compiler.has_error = true;
         }
 
         self.writeOp(jump);
@@ -264,7 +272,8 @@ const TreeWalker = struct {
         const jump = self.code.items.len - jump_idx - 2;
 
         if (jump > std.math.maxInt(u16)) {
-            // TODO: error msg
+            printError("Too much code to jump: {d}", .{jump});
+            self.compiler.has_error = true;
         }
 
         self.code.items[jump_idx] = @intCast((jump >> 8) & 0xff);
@@ -280,6 +289,10 @@ pub fn translate(program: []*ast.Stmt, alloc: Allocator) ![]u8 {
     };
     defer compiler.deinit();
     try compiler.compile();
+
+    if (compiler.has_error) {
+        return Error.CompileError;
+    }
 
     return try compiler.toBytecode();
 }
@@ -393,4 +406,10 @@ fn getConstant(self: *Compiler, value: Value) !u8 {
         }
     }
     return Error.ConstantNotFound;
+}
+
+fn printError(comptime format: []const u8, args: anytype) void {
+    const StdErr = std.io.getStdErr().writer();
+    StdErr.print(format, args) catch {};
+    StdErr.writeByte('\n') catch {};
 }
