@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const Value = @import("../bytecode/value.zig").Value;
 const Instruction = @import("../bytecode/instruction_set.zig").Instruction;
 const StdOut = std.io.getStdOut().writer();
+const StdErr = std.io.getStdErr().writer();
 
 const VM = @This();
 
@@ -18,12 +19,14 @@ code: []const u8,
 ip: usize,
 stack: []Value,
 stack_top: usize,
+has_error: bool,
 
 const Error = error{
     UnexpectedInstruction,
     StackOverflow,
     IOError,
     TypeError,
+    RuntimeError,
 };
 
 pub fn init(alloc: Allocator, program: []const u8) !VM {
@@ -38,6 +41,7 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
         .ip = 0,
         .stack = try alloc.alloc(Value, STACK_MAX),
         .stack_top = 0,
+        .has_error = false,
     };
 }
 
@@ -106,6 +110,7 @@ fn run(self: *VM) !void {
             .NEGATE => {
                 const value = self.pop();
                 if (value != .number) {
+                    try self.runtimeError("Negation only works on numbers", .{});
                     return Error.TypeError;
                 }
                 try self.push(.{ .number = value.number * -1 });
@@ -127,26 +132,18 @@ fn run(self: *VM) !void {
             .GLOBAL_DEFINE => {
                 const idx = self.readByte();
                 const name = self.constants[idx];
-                if (name != .string) {
-                    // weird
-                    unreachable;
-                }
+                if (name != .string) unreachable; // weird
                 const value = self.pop();
                 try self.globals.put(name.string.value, value);
             },
             .GLOBAL_GET => {
                 const idx = self.readByte();
                 const name = self.constants[idx];
-                if (name != .string) {
-                    // weird
-                    unreachable;
-                }
+                if (name != .string) unreachable; // weird
                 if (self.globals.get(name.string.value)) |val| {
                     try self.push(val);
                 } else {
-                    // undefined global
-                    // TODO: This needs to be better handled
-                    unreachable;
+                    try self.runtimeError("Undefined global '{s}'", .{name.string.value});
                 }
             },
             .GLOBAL_SET => {
@@ -159,9 +156,7 @@ fn run(self: *VM) !void {
                 if (self.globals.get(name.string.value)) |_| {
                     try self.globals.put(name.string.value, self.peek(0));
                 } else {
-                    // undefined global
-                    // TODO: This needs to be better handled
-                    unreachable;
+                    try self.runtimeError("Undefined global '{s}'", .{name.string.value});
                 }
             },
             .LOCAL_POP => self.locals_count -= 1,
@@ -198,6 +193,10 @@ fn run(self: *VM) !void {
             },
         }
         // @import("../debug/Stack.zig").print(self.stack, self.stack_top);
+
+        if (self.has_error) {
+            return Error.RuntimeError;
+        }
     }
 }
 
@@ -205,8 +204,10 @@ fn binaryOp(self: *VM, op: Instruction) !void {
     const right = self.pop();
     const left = self.pop();
 
-    // TODO: Typechecks
-    // TODO: Special treatment for string concats later
+    if (left != .number or right != .number) {
+        try self.runtimeError("Binary operation expects operands to be of type number. Got {} and {}", .{ std.meta.activeTag(left), std.meta.activeTag(right) });
+        return Error.TypeError;
+    }
 
     const result = switch (op) {
         .ADD => left.number + right.number,
@@ -265,6 +266,7 @@ fn pop(self: *VM) Value {
 
 fn push(self: *VM, value: Value) !void {
     if (self.stack_top == STACK_MAX) {
+        try self.runtimeError("Stack overflow", .{});
         return Error.StackOverflow;
     }
     self.stack[self.stack_top] = value;
@@ -290,4 +292,9 @@ fn printValue(value: Value) !void {
 
 fn printLiteral(str: []const u8) !void {
     StdOut.writeAll(str) catch return Error.IOError;
+}
+
+fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) !void {
+    self.has_error = true;
+    StdErr.print(format, args) catch return Error.IOError;
 }
