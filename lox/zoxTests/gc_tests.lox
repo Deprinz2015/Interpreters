@@ -1,0 +1,11 @@
+var global = "Hallo";
+var concatted = "1 " + "& " + "2";
+print concatted;
+print global;
+
+{
+    var in_scope = "in scope";
+    print in_scope;
+}
+
+print "0 & " + concatted;

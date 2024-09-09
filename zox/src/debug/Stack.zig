@@ -1,5 +1,5 @@
 const std = @import("std");
-const Value = @import("../bytecode/value.zig").Value;
+const Value = @import("../vm/value.zig").Value;
 
 pub fn print(stack: []Value, stack_top: usize) void {
     std.debug.print("Stack: ", .{});

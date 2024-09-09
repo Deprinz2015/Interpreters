@@ -52,6 +52,13 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
 
 pub fn deinit(self: *VM) void {
     self.globals.deinit();
+    for (self.constants, 0..) |constant, i| {
+        if (i >= self.constants_count) {
+            break;
+        }
+
+        self.gc.countDown(constant);
+    }
     self.alloc.free(self.stack);
     var string_iter = self.strings.keyIterator();
     while (string_iter.next()) |string| {
@@ -104,7 +111,7 @@ fn loadConstants(self: *VM) !void {
 
                 const value = self.code[idx + 3 .. idx + 3 + len];
                 const string = try Value.String.copyString(value, self.alloc);
-                try self.gc.count(string);
+                try self.gc.countUp(string);
                 self.constants[self.constants_count] = string;
                 try self.strings.put(string.string.value, undefined);
                 self.constants_count += 1;
@@ -165,6 +172,7 @@ fn run(self: *VM) !void {
                 const name = self.constants[idx];
                 if (name != .string) unreachable; // weird
                 const value = self.pop();
+                try self.gc.countUp(value);
                 try self.globals.put(name.string.value, value);
             },
             .GLOBAL_GET => {
@@ -184,23 +192,28 @@ fn run(self: *VM) !void {
                     // weird
                     unreachable;
                 }
-                if (self.globals.get(name.string.value)) |_| {
+                if (self.globals.get(name.string.value)) |old_value| {
                     try self.globals.put(name.string.value, self.peek(0));
+                    try self.gc.countUp(name);
+                    self.gc.countDown(old_value);
                 } else {
                     try self.runtimeError("Undefined global '{s}'", .{name.string.value});
                 }
             },
-            .LOCAL_POP => self.locals_count -= 1,
+            .LOCAL_POP => {
+                self.locals_count -= 1;
+                self.gc.countDown(self.locals[self.locals_count]);
+            },
             .LOCAL_GET => {
                 const idx = self.readByte();
                 try self.push(self.localAt(idx));
             },
             .LOCAL_SET => {
-                self.pushLocal(self.pop());
+                try self.pushLocal(self.pop());
             },
             .LOCAL_SET_AT => {
                 const idx = self.readByte();
-                self.setLocalAt(idx, self.peek(0));
+                try self.setLocalAt(idx, self.peek(0));
             },
             .JUMP => {
                 const jump = self.readShort();
@@ -243,9 +256,9 @@ fn concat(self: *VM) !void {
     const concatted = try std.fmt.allocPrint(self.alloc, "{}{}", .{ left, right });
     const interned = try self.internString(concatted);
     const result = try Value.String.takeString(interned, self.alloc);
-    try self.gc.count(result);
-    try self.gc.countDown(left);
-    try self.gc.countDown(right);
+    self.gc.countDown(left);
+    self.gc.countDown(right);
+    try self.gc.countUp(result);
     try self.push(result);
 }
 
@@ -345,13 +358,16 @@ fn localAt(self: *VM, idx: usize) Value {
     return self.locals[self.locals_count - idx];
 }
 
-fn setLocalAt(self: *VM, idx: usize, value: Value) void {
+fn setLocalAt(self: *VM, idx: usize, value: Value) !void {
+    const old = self.localAt(idx);
     self.locals[self.locals_count - idx] = value;
+    self.gc.countDown(old);
 }
 
-fn pushLocal(self: *VM, value: Value) void {
+fn pushLocal(self: *VM, value: Value) !void {
     self.locals[self.locals_count] = value;
     self.locals_count += 1;
+    try self.gc.countUp(value);
 }
 
 fn printValue(value: Value) !void {

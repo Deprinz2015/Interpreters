@@ -39,39 +39,29 @@ pub fn deinit(self: *GC) void {
     self.ref_counts.deinit();
 }
 
-/// If value does not need to be counted, this is a no-op
-pub fn count(self: *GC, value: Value) !void {
-    if (!isGarbageCollected(value)) return;
-
-    const ptr = getPtrFromValue(value);
-    try self.ref_counts.put(ptr, .{ .count = 1, .value = value });
-
-    if (DEBUG_OUTPUT) {
-        std.debug.print("[GC] started counting addr 0x{x} with value {}\n", .{ ptr, value });
-    }
-}
-
 pub fn countUp(self: *GC, value: Value) !void {
     if (!isGarbageCollected(value)) return;
     const ptr = getPtrFromValue(value);
 
-    if (self.ref_counts.getPtr(ptr)) |count_ptr| {
-        if (DEBUG_OUTPUT) {
-            std.debug.print("[GC] increment addr 0x{x}\n", .{ptr});
-        }
-        count_ptr.count += 1;
+    const gop = try self.ref_counts.getOrPut(ptr);
+
+    if (gop.found_existing) {
+        gop.value_ptr.count += 1;
     } else {
-        return Error.UntrackedMemory;
+        gop.value_ptr.* = .{ .count = 1, .value = value };
+    }
+    if (DEBUG_OUTPUT) {
+        std.debug.print("[GC] increment addr 0x{x} for value '{}', count at {d}\n", .{ ptr, value, gop.value_ptr.count });
     }
 }
 
-pub fn countDown(self: *GC, value: Value) !void {
+pub fn countDown(self: *GC, value: Value) void {
     if (!isGarbageCollected(value)) return;
     const ptr = getPtrFromValue(value);
 
     if (self.ref_counts.getPtr(ptr)) |count_ptr| {
         if (DEBUG_OUTPUT) {
-            std.debug.print("[GC] decrement addr 0x{x}\n", .{ptr});
+            std.debug.print("[GC] decrement addr 0x{x} for value '{}', count at {d}\n", .{ ptr, value, count_ptr.count - 1 });
         }
         if (count_ptr.count > 1) {
             count_ptr.count -= 1;
@@ -84,8 +74,6 @@ pub fn countDown(self: *GC, value: Value) !void {
 
         count_ptr.value.destroy(self.alloc);
         _ = self.ref_counts.remove(ptr);
-    } else {
-        return Error.UntrackedMemory;
     }
 }
 

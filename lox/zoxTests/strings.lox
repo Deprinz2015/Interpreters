@@ -4,3 +4,10 @@ var s2 = "World";
 print s1;
 print s2;
 print s1 + s2;
+
+var acc = "";
+for(var i = 0; i < 5; i = i + 1) {
+    acc = acc + i;
+}
+
+print acc;
