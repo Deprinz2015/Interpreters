@@ -66,9 +66,7 @@ pub fn main() !u8 {
         defer alloc.free(bytecode);
 
         if (parser.options.printBytecode) {
-            var disassembler: Disassembler = .init(bytecode, alloc);
-            defer disassembler.deinit();
-            try disassembler.print();
+            try Disassembler.disassemble(bytecode);
         }
 
         if (parser.options.run) {

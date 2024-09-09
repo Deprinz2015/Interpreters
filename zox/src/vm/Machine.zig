@@ -1,6 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Value = @import("../bytecode/value.zig").Value;
+const Value = @import("value.zig").Value;
 const Instruction = @import("../bytecode/instruction_set.zig").Instruction;
 const StdOut = std.io.getStdOut().writer();
 const StdErr = std.io.getStdErr().writer();

@@ -1,13 +1,13 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-/// Compile time, to be used in Compiler
-/// This uses static memory only
+/// Runtime, to be used in Machine.zig
+/// This uses dynamically allocated memory
 pub const Value = union(enum) {
     number: f64,
     boolean: bool,
     nil: void,
-    string: []const u8,
+    string: *String,
 
     pub fn typeName(value: Value) []const u8 {
         return switch (value) {
@@ -28,10 +28,9 @@ pub const Value = union(enum) {
             .boolean => this.boolean == that.boolean,
             .nil => true,
             .string => {
-                const str_l = this.string;
-                const str_r = that.string;
-
-                return std.mem.eql(u8, str_l, str_r);
+                const l = this.string.value;
+                const r = that.string.value;
+                return l.ptr == r.ptr;
             },
         };
     }
@@ -48,7 +47,24 @@ pub const Value = union(enum) {
             .number => try writer.print("{d}", .{value.number}),
             .boolean => try writer.writeAll(if (value.boolean) "true" else "false"),
             .nil => try writer.writeAll("nil"),
-            .string => try writer.print("{s}", .{value.string}),
+            .string => try writer.print("{s}", .{value.string.value}),
         }
     }
+
+    pub const String = struct {
+        value: []const u8,
+
+        pub fn copyString(str: []const u8, alloc: Allocator) !Value {
+            const copied = try alloc.dupe(u8, str);
+            const str_obj = try alloc.create(String);
+            str_obj.* = .{ .value = copied };
+            return .{ .string = str_obj };
+        }
+
+        pub fn takeString(str: []const u8, alloc: Allocator) !Value {
+            const str_obj = try alloc.create(String);
+            str_obj.* = .{ .value = str };
+            return .{ .string = str_obj };
+        }
+    };
 };

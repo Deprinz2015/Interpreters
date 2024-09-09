@@ -5,15 +5,13 @@ const Value = @import("../bytecode/value.zig").Value;
 
 const Disassembler = @This();
 
-alloc: Allocator,
 code: []u8,
 ip: usize,
 constants: [256]Value,
 constants_count: usize,
 
-pub fn init(code: []u8, alloc: Allocator) Disassembler {
+fn init(code: []u8) Disassembler {
     return .{
-        .alloc = alloc,
         .code = code,
         .ip = 0,
         .constants = undefined,
@@ -21,15 +19,9 @@ pub fn init(code: []u8, alloc: Allocator) Disassembler {
     };
 }
 
-pub fn deinit(self: *Disassembler) void {
-    for (self.constants, 0..) |constant, i| {
-        if (i >= self.constants_count) break;
-
-        if (constant == .string) {
-            self.alloc.free(constant.string.value);
-            self.alloc.destroy(constant.string);
-        }
-    }
+pub fn disassemble(code: []u8) !void {
+    var disassembler: Disassembler = .init(code);
+    try disassembler.print();
 }
 
 fn loadConstants(self: *Disassembler) !void {
@@ -56,7 +48,7 @@ fn loadConstants(self: *Disassembler) !void {
                 };
 
                 const value = self.code[idx + 3 .. idx + 3 + len];
-                self.constants[self.constants_count] = try Value.String.copyString(value, self.alloc);
+                self.constants[self.constants_count] = .{ .string = value };
                 self.constants_count += 1;
                 idx += 1 + 2 + len; // 1 for instruction, 2 for len, len of string
             },

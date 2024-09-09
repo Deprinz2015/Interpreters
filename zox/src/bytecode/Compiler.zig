@@ -3,7 +3,6 @@ const Allocator = std.mem.Allocator;
 const ast = @import("../compiler/ast.zig");
 const Instruction = @import("instruction_set.zig").Instruction;
 const Value = @import("value.zig").Value;
-const String = Value.String;
 
 const Compiler = @This();
 
@@ -59,7 +58,7 @@ const TreeWalker = struct {
                 }
 
                 if (self.enclosing == null) {
-                    const string = String.copyString(decl.name.lexeme, self.compiler.alloc) catch @panic("Out of Memory");
+                    const string: Value = .{ .string = decl.name.lexeme };
                     const idx = self.compiler.saveConstant(string) catch {
                         printError("Could not save constant string '{s}'", .{decl.name.lexeme});
                         self.compiler.has_error = true;
@@ -158,7 +157,7 @@ const TreeWalker = struct {
                 .boolean => |b| self.writeOp(if (b) .TRUE else .FALSE),
                 .nil => self.writeOp(.NIL),
                 .string => |str| {
-                    const string = String.copyString(str, self.compiler.alloc) catch @panic("Out of Memory");
+                    const string: Value = .{ .string = str };
                     const idx = self.compiler.saveConstant(string) catch {
                         printError("Could not save constant string '{s}'", .{str});
                         self.compiler.has_error = true;
@@ -175,9 +174,9 @@ const TreeWalker = struct {
                         break :variable;
                     }
                 }
-                var name: String = .{ .value = variable.name.lexeme };
-                const idx = self.compiler.getConstant(.{ .string = &name }) catch {
-                    printError("Could not find constant string '{s}'", .{name.value});
+                const name: Value = .{ .string = variable.name.lexeme };
+                const idx = self.compiler.getConstant(name) catch {
+                    printError("Could not find constant string '{s}'", .{name.string});
                     self.compiler.has_error = true;
                     return;
                 };
@@ -192,9 +191,9 @@ const TreeWalker = struct {
                         break :assignment;
                     }
                 }
-                var name: String = .{ .value = assignment.name.lexeme };
-                const idx = self.compiler.getConstant(.{ .string = &name }) catch {
-                    printError("Could not find constant string '{s}'", .{name.value});
+                const name: Value = .{ .string = assignment.name.lexeme };
+                const idx = self.compiler.getConstant(name) catch {
+                    printError("Could not find constant string '{s}'", .{name.string});
                     self.compiler.has_error = true;
                     return;
                 };
@@ -297,20 +296,7 @@ pub fn translate(program: []*ast.Stmt, alloc: Allocator) ![]u8 {
     return try compiler.toBytecode();
 }
 
-fn destroyValue(self: *Compiler, value: Value) void {
-    if (value == .string) {
-        self.alloc.free(value.string.value);
-        self.alloc.destroy(value.string);
-    }
-}
-
 fn deinit(self: *Compiler) void {
-    for (self.constants, 0..) |constant, i| {
-        if (i >= self.constants_count) {
-            break;
-        }
-        self.destroyValue(constant);
-    }
     self.code.deinit();
 }
 
@@ -350,13 +336,13 @@ fn insertConstants(self: *Compiler) !void {
             .string => {
                 try constants_code.append(@intFromEnum(Instruction.STRING));
                 // String length is written into 2 bytes
-                const len = constant.string.value.len;
+                const len = constant.string.len;
                 if (len > std.math.maxInt(u16)) {
                     return Error.StringToLong;
                 }
                 try constants_code.append(@intCast((len >> 8) & 0xff));
                 try constants_code.append(@intCast(len & 0xff));
-                try constants_code.appendSlice(constant.string.value);
+                try constants_code.appendSlice(constant.string);
             },
             else => @panic("Unsupported constant type"),
         }
@@ -384,8 +370,7 @@ fn saveConstant(self: *Compiler, value: Value) !u8 {
         }
 
         if (constant == .string and value == .string) {
-            if (std.mem.eql(u8, constant.string.value, value.string.value)) {
-                self.destroyValue(value);
+            if (constant.equals(value)) {
                 return @intCast(i);
             }
         }
@@ -407,7 +392,7 @@ fn getConstant(self: *Compiler, value: Value) !u8 {
         }
 
         if (constant == .string and value == .string) {
-            if (std.mem.eql(u8, constant.string.value, value.string.value)) {
+            if (constant.equals(value)) {
                 return @intCast(i);
             }
         }
