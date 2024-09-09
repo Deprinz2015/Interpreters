@@ -5,6 +5,9 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const zli = b.dependency("zli", .{ .target = target, .optimize = optimize });
 
+    var config = b.addOptions();
+    config.addOption(bool, "GC_DEBUG", optimize == .Debug);
+
     const exe = b.addExecutable(.{
         .name = "zox",
         .root_source_file = b.path("src/main.zig"),
@@ -13,6 +16,7 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.root_module.addImport("zli", zli.module("zli"));
+    exe.root_module.addOptions("config", config);
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
