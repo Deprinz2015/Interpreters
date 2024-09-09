@@ -9,6 +9,13 @@ pub const Value = union(enum) {
     nil: void,
     string: *String,
 
+    pub fn destroy(self: Value, alloc: Allocator) void {
+        switch (self) {
+            .number, .boolean, .nil => {},
+            .string => alloc.destroy(self.string),
+        }
+    }
+
     pub fn typeName(value: Value) []const u8 {
         return switch (value) {
             .string => "string",

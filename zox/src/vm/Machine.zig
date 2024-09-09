@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const GC = @import("GC.zig");
 const Value = @import("value.zig").Value;
 const Instruction = @import("../bytecode/instruction_set.zig").Instruction;
 const StdOut = std.io.getStdOut().writer();
@@ -17,6 +18,7 @@ locals: [256]Value,
 locals_count: usize,
 strings: std.StringHashMap(void),
 code: []const u8,
+gc: GC,
 ip: usize,
 stack: []Value,
 stack_top: usize,
@@ -40,6 +42,7 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
         .strings = .init(alloc),
         .globals = .init(alloc),
         .code = program,
+        .gc = .init(alloc),
         .ip = 0,
         .stack = try alloc.alloc(Value, STACK_MAX),
         .stack_top = 0,
@@ -50,24 +53,12 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
 pub fn deinit(self: *VM) void {
     self.globals.deinit();
     self.alloc.free(self.stack);
-    for (self.constants, 0..) |value, i| {
-        if (i >= self.constants_count) {
-            break;
-        }
-
-        if (value == .string) {
-            if (self.strings.get(value.string.value) == null) {
-                self.alloc.free(value.string.value);
-            }
-            self.alloc.destroy(value.string);
-        }
-    }
-
     var string_iter = self.strings.keyIterator();
     while (string_iter.next()) |string| {
         self.alloc.free(string.*);
     }
     self.strings.deinit();
+    self.gc.deinit();
 }
 
 pub fn execute(self: *VM) !void {
@@ -113,6 +104,7 @@ fn loadConstants(self: *VM) !void {
 
                 const value = self.code[idx + 3 .. idx + 3 + len];
                 const string = try Value.String.copyString(value, self.alloc);
+                try self.gc.count(string);
                 self.constants[self.constants_count] = string;
                 try self.strings.put(string.string.value, undefined);
                 self.constants_count += 1;
@@ -251,6 +243,9 @@ fn concat(self: *VM) !void {
     const concatted = try std.fmt.allocPrint(self.alloc, "{}{}", .{ left, right });
     const interned = try self.internString(concatted);
     const result = try Value.String.takeString(interned, self.alloc);
+    try self.gc.count(result);
+    try self.gc.countDown(left);
+    try self.gc.countDown(right);
     try self.push(result);
 }
 
