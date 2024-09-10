@@ -126,7 +126,6 @@ fn run(self: *VM) !void {
     while (self.ip < self.code.len) {
         const byte = self.readByte();
         const instruction: Instruction = @enumFromInt(byte);
-        // TODO: When adding GC, go through everpart where a value is popped and check for unexpected frees
         switch (instruction) {
             .NUMBER, .STRING, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
             .POP => _ = self.pop(),
