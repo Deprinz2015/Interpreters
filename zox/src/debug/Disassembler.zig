@@ -100,6 +100,7 @@ pub fn print(self: *Disassembler) !void {
             .JUMP_IF_FALSE => self.jumpInstruction("OP_JUMP_IF_FALSE", true),
             .JUMP_IF_TRUE => self.jumpInstruction("OP_JUMP_IF_TRUE", true),
             .JUMP_BACK => self.jumpInstruction("OP_JUMP_BACK", false),
+            .CALL => self.simpleInstruction("OP_CALL"),
         }
     }
 }

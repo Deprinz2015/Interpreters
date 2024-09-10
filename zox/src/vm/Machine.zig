@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const GC = @import("GC.zig");
 const Value = @import("value.zig").Value;
 const Instruction = @import("../instruction_set.zig").Instruction;
+const natives = @import("native_functions.zig");
 const StdOut = std.io.getStdOut().writer();
 const StdErr = std.io.getStdErr().writer();
 
@@ -70,6 +71,7 @@ pub fn deinit(self: *VM) void {
 
 pub fn execute(self: *VM) !void {
     try self.loadConstants();
+    try self.registerNatives();
     try self.run();
 }
 
@@ -122,11 +124,16 @@ fn loadConstants(self: *VM) !void {
     }
 }
 
+fn registerNatives(self: *VM) !void {
+    try self.globals.put("time", .{ .native = .{ .func = &natives.time, .arity = 0 } });
+}
+
 fn run(self: *VM) !void {
     while (self.ip < self.code.len) {
         const byte = self.readByte();
         const instruction: Instruction = @enumFromInt(byte);
         switch (instruction) {
+            .CALL => try self.call(),
             .NUMBER, .STRING, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
             .POP => _ = self.pop(),
             .NOT => {
@@ -317,6 +324,26 @@ fn comparisonOp(self: *VM, op: Instruction) !void {
     try self.push(.{ .boolean = result });
 }
 
+fn call(self: *VM) !void {
+    const callee = self.pop();
+
+    switch (callee) {
+        .native => try self.nativeCall(callee.native),
+        else => try self.runtimeError("Can only call functions. '{}' is not callable", .{callee}),
+    }
+}
+
+fn nativeCall(self: *VM, callee: Value.Native) !void {
+    const arg_start = self.stack_top - callee.arity;
+    const args = self.stack[arg_start..self.stack_top];
+
+    const ret_val = callee.func(args, self);
+    for (0..callee.arity) |_| {
+        _ = self.pop();
+    }
+    try self.push(ret_val);
+}
+
 fn readByte(self: *VM) u8 {
     const byte = self.code[self.ip];
     self.ip += 1;
@@ -379,7 +406,7 @@ fn printLiteral(str: []const u8) !void {
     StdOut.writeAll(str) catch return Error.IOError;
 }
 
-fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) !void {
+pub fn runtimeError(self: *VM, comptime format: []const u8, args: anytype) !void {
     self.has_error = true;
     StdErr.print(format, args) catch return Error.IOError;
     StdErr.writeAll("\n") catch return Error.IOError;

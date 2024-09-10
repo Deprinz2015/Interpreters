@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const VM = @import("Machine.zig");
 
 /// Runtime, to be used in Machine.zig
 /// This uses dynamically allocated memory
@@ -8,10 +9,11 @@ pub const Value = union(enum) {
     boolean: bool,
     nil: void,
     string: *String,
+    native: Native,
 
     pub fn destroy(self: Value, alloc: Allocator) void {
         switch (self) {
-            .number, .boolean, .nil => {},
+            .number, .boolean, .nil, .native => {},
             .string => alloc.destroy(self.string),
         }
     }
@@ -22,6 +24,7 @@ pub const Value = union(enum) {
             .number => "number",
             .nil => "nil",
             .boolean => "boolean",
+            .native => "<native fn>",
         };
     }
 
@@ -39,6 +42,7 @@ pub const Value = union(enum) {
                 const r = that.string.value;
                 return l.ptr == r.ptr;
             },
+            .native => this.native.func == that.native.func,
         };
     }
 
@@ -55,6 +59,7 @@ pub const Value = union(enum) {
             .boolean => try writer.writeAll(if (value.boolean) "true" else "false"),
             .nil => try writer.writeAll("nil"),
             .string => try writer.print("{s}", .{value.string.value}),
+            .native => try writer.writeAll("<native fn>"),
         }
     }
 
@@ -73,5 +78,12 @@ pub const Value = union(enum) {
             str_obj.* = .{ .value = str };
             return .{ .string = str_obj };
         }
+    };
+
+    pub const Native = struct {
+        arity: u8,
+        func: *const Func,
+
+        pub const Func = fn (args: []Value, vm: *VM) Value;
     };
 };

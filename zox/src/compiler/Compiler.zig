@@ -175,8 +175,8 @@ const TreeWalker = struct {
                     }
                 }
                 const name: Value = .{ .string = variable.name.lexeme };
-                const idx = self.compiler.getConstant(name) catch {
-                    printError("Could not find constant string '{s}'", .{name.string});
+                const idx = self.compiler.saveConstant(name) catch {
+                    printError("Could not save constant string '{s}'", .{name.string});
                     self.compiler.has_error = true;
                     return;
                 };
@@ -192,8 +192,8 @@ const TreeWalker = struct {
                     }
                 }
                 const name: Value = .{ .string = assignment.name.lexeme };
-                const idx = self.compiler.getConstant(name) catch {
-                    printError("Could not find constant string '{s}'", .{name.string});
+                const idx = self.compiler.saveConstant(name) catch {
+                    printError("Could not save constant string '{s}'", .{name.string});
                     self.compiler.has_error = true;
                     return;
                 };
@@ -211,7 +211,13 @@ const TreeWalker = struct {
                 self.traverseExpression(logical.right);
                 self.patchJump(jump);
             },
-            else => unreachable,
+            .call => |call| {
+                for (call.arguments) |arg| {
+                    self.traverseExpression(arg);
+                }
+                self.traverseExpression(call.callee);
+                self.writeOp(.CALL);
+            },
         }
     }
 
@@ -379,25 +385,6 @@ fn saveConstant(self: *Compiler, value: Value) !u8 {
     self.constants[self.constants_count] = value;
     self.constants_count += 1;
     return @intCast(self.constants_count - 1);
-}
-
-fn getConstant(self: *Compiler, value: Value) !u8 {
-    for (self.constants, 0..) |constant, i| {
-        if (i >= self.constants_count) {
-            break;
-        }
-
-        if (constant.equals(value)) {
-            return @intCast(i);
-        }
-
-        if (constant == .string and value == .string) {
-            if (constant.equals(value)) {
-                return @intCast(i);
-            }
-        }
-    }
-    return Error.ConstantNotFound;
 }
 
 fn printError(comptime format: []const u8, args: anytype) void {
