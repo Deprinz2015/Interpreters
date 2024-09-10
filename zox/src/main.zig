@@ -77,6 +77,11 @@ pub fn main() !u8 {
         }
     } else {
         const code = try readFile(alloc, input);
+
+        if (parser.options.printBytecode) {
+            try Disassembler.disassemble(code);
+        }
+
         defer alloc.free(code);
         try run(alloc, code);
     }

@@ -5,12 +5,12 @@ const Value = @import("../bytecode/value.zig").Value;
 
 const Disassembler = @This();
 
-code: []u8,
+code: []const u8,
 ip: usize,
 constants: [256]Value,
 constants_count: usize,
 
-fn init(code: []u8) Disassembler {
+fn init(code: []const u8) Disassembler {
     return .{
         .code = code,
         .ip = 0,
@@ -19,7 +19,7 @@ fn init(code: []u8) Disassembler {
     };
 }
 
-pub fn disassemble(code: []u8) !void {
+pub fn disassemble(code: []const u8) !void {
     var disassembler: Disassembler = .init(code);
     try disassembler.print();
 }
