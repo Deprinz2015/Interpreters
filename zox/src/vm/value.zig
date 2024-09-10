@@ -81,7 +81,6 @@ pub const Value = union(enum) {
     };
 
     pub const Native = struct {
-        arity: u8,
         func: *const Func,
 
         pub const Func = fn (args: []Value, vm: *VM) Value;

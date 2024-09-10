@@ -125,7 +125,7 @@ fn loadConstants(self: *VM) !void {
 }
 
 fn registerNatives(self: *VM) !void {
-    try self.globals.put("time", .{ .native = .{ .func = &natives.time, .arity = 0 } });
+    try self.globals.put("time", .{ .native = .{ .func = &natives.time } });
 }
 
 fn run(self: *VM) !void {
@@ -133,7 +133,7 @@ fn run(self: *VM) !void {
         const byte = self.readByte();
         const instruction: Instruction = @enumFromInt(byte);
         switch (instruction) {
-            .CALL => try self.call(),
+            .CALL => try self.call(self.readByte()),
             .NUMBER, .STRING, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
             .POP => _ = self.pop(),
             .NOT => {
@@ -324,21 +324,21 @@ fn comparisonOp(self: *VM, op: Instruction) !void {
     try self.push(.{ .boolean = result });
 }
 
-fn call(self: *VM) !void {
+fn call(self: *VM, arg_count: u8) !void {
     const callee = self.pop();
 
     switch (callee) {
-        .native => try self.nativeCall(callee.native),
+        .native => try self.nativeCall(callee.native, arg_count),
         else => try self.runtimeError("Can only call functions. '{}' is not callable", .{callee}),
     }
 }
 
-fn nativeCall(self: *VM, callee: Value.Native) !void {
-    const arg_start = self.stack_top - callee.arity;
+fn nativeCall(self: *VM, callee: Value.Native, arg_count: u8) !void {
+    const arg_start = self.stack_top - arg_count;
     const args = self.stack[arg_start..self.stack_top];
 
     const ret_val = callee.func(args, self);
-    for (0..callee.arity) |_| {
+    for (0..arg_count) |_| {
         _ = self.pop();
     }
     try self.push(ret_val);

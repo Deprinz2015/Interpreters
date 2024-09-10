@@ -216,7 +216,7 @@ const TreeWalker = struct {
                     self.traverseExpression(arg);
                 }
                 self.traverseExpression(call.callee);
-                self.writeOp(.CALL);
+                self.writeOperand(.CALL, @intCast(call.arguments.len));
             },
         }
     }
