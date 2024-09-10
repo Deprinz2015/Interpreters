@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Instruction = @import("../bytecode/instruction_set.zig").Instruction;
-const Value = @import("../bytecode/value.zig").Value;
+const Instruction = @import("../instruction_set.zig").Instruction;
+const Value = @import("../compiler/value.zig").Value;
 
 const Disassembler = @This();
 

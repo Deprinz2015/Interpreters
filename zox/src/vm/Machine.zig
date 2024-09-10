@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const GC = @import("GC.zig");
 const Value = @import("value.zig").Value;
-const Instruction = @import("../bytecode/instruction_set.zig").Instruction;
+const Instruction = @import("../instruction_set.zig").Instruction;
 const StdOut = std.io.getStdOut().writer();
 const StdErr = std.io.getStdErr().writer();
 

@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ast = @import("../compiler/ast.zig");
-const Instruction = @import("instruction_set.zig").Instruction;
+const ast = @import("ast.zig");
+const Instruction = @import("../instruction_set.zig").Instruction;
 const Value = @import("value.zig").Value;
 
 const Compiler = @This();

@@ -7,7 +7,7 @@ const Parser = @import("compiler/Parser.zig");
 const Token = @import("compiler/Token.zig");
 const sema = @import("compiler/sema.zig");
 
-const ByteCodeCompiler = @import("bytecode/Compiler.zig");
+const ByteCodeCompiler = @import("compiler/Compiler.zig");
 
 const VM = @import("vm/Machine.zig");
 
