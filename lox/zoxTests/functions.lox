@@ -1,6 +1,11 @@
-fun test(a, b) {
+fun debug(a, b) {
     print a;
     print b;
+    print c;
 }
 
-test(1, 2);
+fun double(a) {
+    return a * 2;
+}
+
+debug(1, double(2));

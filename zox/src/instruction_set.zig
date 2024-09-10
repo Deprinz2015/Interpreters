@@ -32,5 +32,8 @@ pub const Instruction = enum(u8) {
     JUMP_IF_FALSE,
     JUMP_IF_TRUE,
     JUMP_BACK,
+    FUNCTION_START,
+    FUNCTION_END,
     CALL,
+    RETURN,
 };

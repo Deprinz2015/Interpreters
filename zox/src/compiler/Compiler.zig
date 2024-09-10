@@ -57,35 +57,11 @@ const TreeWalker = struct {
                     self.writeOp(.NIL);
                 }
 
-                if (self.enclosing == null) {
-                    const string: Value = .{ .string = decl.name.lexeme };
-                    const idx = self.compiler.saveConstant(string) catch {
-                        printError("Could not save constant string '{s}'", .{decl.name.lexeme});
-                        self.compiler.has_error = true;
-                        return;
-                    };
-                    self.writeOperand(.GLOBAL_DEFINE, idx);
-                } else {
-                    self.locals[self.locals_count] = decl.name.lexeme;
-                    self.locals_count += 1;
-                    self.writeOp(.LOCAL_SET);
-                }
+                self.resolveName(decl.name.lexeme);
             },
             .block => |block| {
-                var walker: TreeWalker = .init(self.compiler, self);
-                defer walker.code.deinit();
-
-                for (block.stmts) |statement| {
-                    walker.traverseStatement(statement);
-                }
-
-                for (0..walker.locals_count) |_| {
-                    walker.writeOp(.LOCAL_POP);
-                }
-
-                const code = walker.code.toOwnedSlice() catch @panic("Out of Memory");
+                const code = self.traverseBlock(block.stmts);
                 defer self.compiler.alloc.free(code);
-
                 self.code.appendSlice(code) catch @panic("Out of Memory");
             },
             .if_stmt => |if_stmt| {
@@ -114,7 +90,30 @@ const TreeWalker = struct {
                 self.patchJump(exit);
                 self.writeOp(.POP);
             },
-            else => unreachable,
+            .return_stmt => |return_stmt| {
+                if (return_stmt.expr) |expr| {
+                    self.traverseExpression(expr);
+                } else {
+                    self.writeOp(.NIL);
+                }
+
+                self.writeOp(.RETURN);
+            },
+            .function => |function| {
+                for (function.params) |param| {
+                    self.locals[self.locals_count] = param.lexeme;
+                    self.locals_count += 1;
+                }
+
+                const code = self.traverseBlock(function.body);
+                defer self.compiler.alloc.free(code);
+
+                self.writeOperand(.FUNCTION_START, @intCast(function.params.len));
+                self.code.appendSlice(code) catch @panic("Out of Memory");
+                self.writeOp(.FUNCTION_END);
+
+                self.resolveName(function.name.lexeme);
+            },
         }
     }
 
@@ -218,6 +217,37 @@ const TreeWalker = struct {
                 self.traverseExpression(call.callee);
                 self.writeOperand(.CALL, @intCast(call.arguments.len));
             },
+        }
+    }
+
+    fn traverseBlock(self: *TreeWalker, stmts: []*ast.Stmt) []u8 {
+        var walker: TreeWalker = .init(self.compiler, self);
+        defer walker.code.deinit();
+
+        for (stmts) |statement| {
+            walker.traverseStatement(statement);
+        }
+
+        for (0..walker.locals_count) |_| {
+            walker.writeOp(.LOCAL_POP);
+        }
+
+        return walker.code.toOwnedSlice() catch @panic("Out of Memory");
+    }
+
+    fn resolveName(self: *TreeWalker, name: []const u8) void {
+        if (self.enclosing == null) {
+            const string: Value = .{ .string = name };
+            const idx = self.compiler.saveConstant(string) catch {
+                printError("Could not save constant string '{s}'", .{name});
+                self.compiler.has_error = true;
+                return;
+            };
+            self.writeOperand(.GLOBAL_DEFINE, idx);
+        } else {
+            self.locals[self.locals_count] = name;
+            self.locals_count += 1;
+            self.writeOp(.LOCAL_SET);
         }
     }
 

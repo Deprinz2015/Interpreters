@@ -148,6 +148,9 @@ pub const Scoping = struct {
         scope.deinit();
     }
 };
+// TODO: Globals analyses
+// Remember which variables are not locals and the access tries.
+// Print every identifier, that is not defined
 
 // TODO: Arity
 // In every call expression, if it is statically known, ie a simple identifier,

@@ -133,8 +133,10 @@ fn run(self: *VM) !void {
         const byte = self.readByte();
         const instruction: Instruction = @enumFromInt(byte);
         switch (instruction) {
+            .NUMBER, .STRING, .CONSTANTS_DONE, .FUNCTION_END => return Error.UnexpectedInstruction,
+            .RETURN => unreachable,
             .CALL => try self.call(self.readByte()),
-            .NUMBER, .STRING, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
+            .FUNCTION_START => try self.defineFunction(),
             .POP => _ = self.pop(),
             .NOT => {
                 const value = self.pop();
@@ -342,6 +344,10 @@ fn nativeCall(self: *VM, callee: Value.Native, arg_count: u8) !void {
         _ = self.pop();
     }
     try self.push(ret_val);
+}
+
+fn defineFunction(self: *VM) !void {
+    _ = self;
 }
 
 fn readByte(self: *VM) u8 {

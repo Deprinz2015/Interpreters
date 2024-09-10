@@ -101,6 +101,9 @@ pub fn print(self: *Disassembler) !void {
             .JUMP_IF_TRUE => self.jumpInstruction("OP_JUMP_IF_TRUE", true),
             .JUMP_BACK => self.jumpInstruction("OP_JUMP_BACK", false),
             .CALL => self.operandInstruction("OP_CALL"),
+            .RETURN => self.simpleInstruction("OP_RETURN"),
+            .FUNCTION_START => self.operandInstruction("OP_FUNCTION_START"),
+            .FUNCTION_END => self.simpleInstruction("OP_FUNCTION_END"),
         }
     }
 }
