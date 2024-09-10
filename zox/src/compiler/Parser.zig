@@ -100,7 +100,17 @@ fn function(self: *Parser) !*ast.Stmt {
 
     try self.consume(.@")", "Expect ')' after parameters");
     try self.consume(.@"{", "Expect '{{' before function body");
-    const body = try self.block();
+    var body = try self.block();
+
+    if (body.len == 0 or body[body.len - 1].* != .return_stmt) {
+        const new_body = self.alloc.allocator().alloc(*ast.Stmt, body.len + 1) catch return Error.CouldNotGenerateNode;
+        for (body, 0..) |stmt, i| {
+            new_body[i] = stmt;
+        }
+        new_body[body.len] = ast.Stmt.newReturn(self.alloc.allocator(), null) catch return Error.CouldNotGenerateNode;
+        body = new_body;
+    }
+
     const params = try parameters.toOwnedSlice();
     return ast.Stmt.newFunction(self.alloc.allocator(), name, params, body);
 }

@@ -294,6 +294,9 @@ pub const Stmt = union(enum) {
             .block => try writer.writeAll("Block: stmts[]"),
             .while_stmt => try writer.writeAll("While: expr stmt"),
             .return_stmt => try writer.writeAll("Return: ?expr"),
+            .if_stmt => try writer.writeAll("If: expr stmt ?stmt"),
+            .var_stmt => try writer.writeAll("Var: token ?expr"),
+            .function => try writer.writeAll("Function: token token[] stmts[]"),
         }
     }
 };
