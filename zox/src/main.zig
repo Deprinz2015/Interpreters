@@ -149,5 +149,6 @@ fn run(alloc: Allocator, bytecode: []const u8) !void {
     defer vm.deinit();
     vm.execute() catch |err| {
         std.io.getStdErr().writer().print("Runtime Error: {}\n", .{err}) catch {};
+        return err;
     };
 }

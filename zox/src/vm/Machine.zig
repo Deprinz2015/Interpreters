@@ -162,6 +162,7 @@ fn run(self: *VM) !void {
                 const value = self.pop();
                 try printValue(value);
                 try printLiteral("\n");
+                self.gc.countDown(value);
             },
             .TRUE => try self.push(.{ .boolean = true }),
             .FALSE => try self.push(.{ .boolean = false }),
@@ -255,8 +256,6 @@ fn concat(self: *VM) !void {
     const concatted = try std.fmt.allocPrint(self.alloc, "{}{}", .{ left, right });
     const interned = try self.internString(concatted);
     const result = try Value.String.takeString(interned, self.alloc);
-    self.gc.countDown(left);
-    self.gc.countDown(right);
     try self.gc.countUp(result);
     try self.push(result);
 }
@@ -341,7 +340,9 @@ fn pop(self: *VM) Value {
     }
 
     self.stack_top -= 1;
-    return self.stack[self.stack_top];
+    const value = self.stack[self.stack_top];
+    self.gc.countDown(value);
+    return value;
 }
 
 fn push(self: *VM, value: Value) !void {
@@ -351,6 +352,7 @@ fn push(self: *VM, value: Value) !void {
     }
     self.stack[self.stack_top] = value;
     self.stack_top += 1;
+    try self.gc.countUp(value);
 }
 
 fn localAt(self: *VM, idx: usize) Value {

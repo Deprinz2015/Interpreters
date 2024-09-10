@@ -1,23 +1,35 @@
-var a = 2;
-print a <= 5;
-while (1 == 1) {
-     print 1 == 1;
-     {
-         1 == 2;
-         "hello";
-     }
+var global_var = "hehe"; // Global variables
+
+print global_var; // print statements
+
+print "Global: " + global_var; // String concatenation
+
+print "Result: " + (1 + 2 - 3 * 4 / 5); // Basic Arithmetic
+
+// Conditional Statements
+if (true) {
+    print "Inside if";
 }
 
-if (true and true) print 1;
-if (false or true) {} else print 2;
+if (false) {
+    print "huh?!";
+}
+else {
+    print "This is better";
+}
+
+// Boolean operations
+var condition = true and true;
+var easier_condition = false or true;
+var not_true = !true;
+
+// Loops
+var counter = 1;
+while (counter < 10) {
+    print "At count: " + counter;
+    counter = counter + 1;
+}
 
 for (var i = 0; i < 5; i = i + 1) {
-     print a;
+    print "For the win: " + i;
 }
-
-for(;;) {
-    print "endless";
-}
-
-return a;
-
