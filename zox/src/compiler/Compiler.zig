@@ -100,6 +100,10 @@ const TreeWalker = struct {
                 self.writeOp(.RETURN);
             },
             .function => |function| {
+                if (self.enclosing != null) {
+                    @panic("Only top-level functions are allowed");
+                }
+
                 for (function.params) |param| {
                     self.locals[self.locals_count] = param.lexeme;
                     self.locals_count += 1;

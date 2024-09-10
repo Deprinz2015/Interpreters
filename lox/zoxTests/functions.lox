@@ -1,7 +1,6 @@
 fun debug(a, b) {
     print a;
     print b;
-    print c;
 }
 
 fun double(a) {
@@ -9,3 +8,4 @@ fun double(a) {
 }
 
 debug(1, double(2));
+debug(2, 3);

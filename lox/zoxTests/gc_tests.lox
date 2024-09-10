@@ -4,7 +4,8 @@ print concatted;
 print global;
 
 {
-    var in_scope = "in scope";
+    var in_scope = "in " + "scope";
+    var also_in_scope = "also" + "t";
     print in_scope;
 }
 

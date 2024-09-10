@@ -10,10 +10,11 @@ pub const Value = union(enum) {
     nil: void,
     string: *String,
     native: Native,
+    function: Function,
 
     pub fn destroy(self: Value, alloc: Allocator) void {
         switch (self) {
-            .number, .boolean, .nil, .native => {},
+            .number, .boolean, .nil, .native, .function => {},
             .string => alloc.destroy(self.string),
         }
     }
@@ -25,6 +26,7 @@ pub const Value = union(enum) {
             .nil => "nil",
             .boolean => "boolean",
             .native => "<native fn>",
+            .function => "<fn>",
         };
     }
 
@@ -43,6 +45,7 @@ pub const Value = union(enum) {
                 return l.ptr == r.ptr;
             },
             .native => this.native.func == that.native.func,
+            .function => this.function.start_instruction == that.function.start_instruction,
         };
     }
 
@@ -60,6 +63,7 @@ pub const Value = union(enum) {
             .nil => try writer.writeAll("nil"),
             .string => try writer.print("{s}", .{value.string.value}),
             .native => try writer.writeAll("<native fn>"),
+            .function => try writer.writeAll("<fn>"),
         }
     }
 
@@ -84,5 +88,14 @@ pub const Value = union(enum) {
         func: *const Func,
 
         pub const Func = fn (args: []Value, vm: *VM) Value;
+    };
+
+    pub const Function = struct {
+        arity: u8,
+        start_instruction: usize,
+    };
+
+    pub const Call = struct {
+        return_adr: usize,
     };
 };

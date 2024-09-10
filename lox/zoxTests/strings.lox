@@ -1,9 +1,10 @@
 var s1 = "Hello ";
 var s2 = "World";
+var hw = s1 + s2;
 
 print s1;
 print s2;
-print s1 + s2;
+print hw;
 
 var acc = "";
 for(var i = 0; i < 5; i = i + 1) {

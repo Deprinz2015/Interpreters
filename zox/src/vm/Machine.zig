@@ -9,7 +9,13 @@ const StdErr = std.io.getStdErr().writer();
 
 const VM = @This();
 
+const CALL_STACK_MAX = 64;
 const STACK_MAX = 256;
+const TOTAL_STACK_MAX = CALL_STACK_MAX * STACK_MAX;
+
+const CallStackEntry = struct {
+    return_addr: usize,
+};
 
 alloc: Allocator,
 constants: [256]Value,
@@ -24,6 +30,13 @@ ip: usize,
 stack: []Value,
 stack_top: usize,
 has_error: bool,
+call_stack: [CALL_STACK_MAX]CallStackEntry,
+call_stack_top: usize,
+current_frame: []Value,
+frame_start: usize,
+/// is used to build up a function. Gets filled on FUNCTION_START and set to null on FUNCTION_END.
+/// While this is not null, no other instruction is executed
+current_fn: ?Value.Function,
 
 const Error = error{
     UnexpectedInstruction,
@@ -45,9 +58,14 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
         .code = program,
         .gc = .init(alloc),
         .ip = 0,
-        .stack = try alloc.alloc(Value, STACK_MAX),
+        .stack = try alloc.alloc(Value, TOTAL_STACK_MAX),
         .stack_top = 0,
+        .call_stack = undefined,
+        .call_stack_top = 0,
+        .current_frame = undefined,
+        .frame_start = 0,
         .has_error = false,
+        .current_fn = null,
     };
 }
 
@@ -70,6 +88,7 @@ pub fn deinit(self: *VM) void {
 }
 
 pub fn execute(self: *VM) !void {
+    self.current_frame = &.{};
     try self.loadConstants();
     try self.registerNatives();
     try self.run();
@@ -132,15 +151,27 @@ fn run(self: *VM) !void {
     while (self.ip < self.code.len) {
         const byte = self.readByte();
         const instruction: Instruction = @enumFromInt(byte);
+        if (self.current_fn) |function| {
+            if (instruction == .FUNCTION_END) {
+                try self.push(.{ .function = function });
+                self.current_fn = null;
+            }
+            continue;
+        }
         switch (instruction) {
             .NUMBER, .STRING, .CONSTANTS_DONE, .FUNCTION_END => return Error.UnexpectedInstruction,
             .RETURN => unreachable,
             .CALL => try self.call(self.readByte()),
-            .FUNCTION_START => try self.defineFunction(),
+            .FUNCTION_START => {
+                const arity = self.readByte();
+                self.current_fn = .{ .arity = arity, .start_instruction = self.ip };
+            },
             .POP => _ = self.pop(),
             .NOT => {
+                try self.gc.countUp(self.peek(0));
                 const value = self.pop();
                 try self.push(.{ .boolean = value.isFalsey() });
+                self.gc.countDown(value);
             },
             .NEGATE => {
                 const value = self.pop();
@@ -156,8 +187,11 @@ fn run(self: *VM) !void {
 
                 if (right == .number and left == .number) {
                     try self.binaryOp(instruction);
-                } else {
+                } else if (right == .string or left == .string) {
                     try self.concat();
+                } else {
+                    try self.runtimeError("Add Operation can only be performed on two numbers or at least one string. Got '{s}' and '{s}'", .{ left.typeName(), right.typeName() });
+                    return Error.TypeError;
                 }
             },
             .SUB, .MUL, .DIV => try self.binaryOp(instruction),
@@ -168,10 +202,10 @@ fn run(self: *VM) !void {
                 try self.push(self.constants[idx]);
             },
             .PRINT => {
-                const value = self.pop();
+                const value = self.peek(0);
                 try printValue(value);
                 try printLiteral("\n");
-                self.gc.countDown(value);
+                _ = self.pop();
             },
             .TRUE => try self.push(.{ .boolean = true }),
             .FALSE => try self.push(.{ .boolean = false }),
@@ -180,9 +214,10 @@ fn run(self: *VM) !void {
                 const idx = self.readByte();
                 const name = self.constants[idx];
                 if (name != .string) unreachable; // weird
-                const value = self.pop();
-                try self.gc.countUp(value);
+                const value = self.peek(0);
                 try self.globals.put(name.string.value, value);
+                try self.gc.countUp(value);
+                _ = self.pop();
             },
             .GLOBAL_GET => {
                 const idx = self.readByte();
@@ -197,10 +232,7 @@ fn run(self: *VM) !void {
             .GLOBAL_SET => {
                 const idx = self.readByte();
                 const name = self.constants[idx];
-                if (name != .string) {
-                    // weird
-                    unreachable;
-                }
+                if (name != .string) unreachable; // weird
                 if (self.globals.get(name.string.value)) |old_value| {
                     try self.globals.put(name.string.value, self.peek(0));
                     try self.gc.countUp(name);
@@ -218,11 +250,15 @@ fn run(self: *VM) !void {
                 try self.push(self.localAt(idx));
             },
             .LOCAL_SET => {
-                try self.pushLocal(self.pop());
+                const value = self.peek(0);
+                try self.pushLocal(value);
+                _ = self.pop();
             },
             .LOCAL_SET_AT => {
                 const idx = self.readByte();
+                const old = self.localAt(idx);
                 try self.setLocalAt(idx, self.peek(0));
+                self.gc.countDown(old);
             },
             .JUMP => {
                 const jump = self.readShort();
@@ -254,19 +290,20 @@ fn run(self: *VM) !void {
 }
 
 fn concat(self: *VM) !void {
+    try self.gc.countUp(self.peek(0));
+    try self.gc.countUp(self.peek(1));
+
     const right = self.pop();
     const left = self.pop();
-
-    if (left != .string and right != .string) {
-        try self.runtimeError("Add Operation can only be performed on two numbers or at least one string. Got '{s}' and '{s}'", .{ left.typeName(), right.typeName() });
-        return Error.TypeError;
-    }
 
     const concatted = try std.fmt.allocPrint(self.alloc, "{}{}", .{ left, right });
     const interned = try self.internString(concatted);
     const result = try Value.String.takeString(interned, self.alloc);
-    try self.gc.countUp(result);
+
     try self.push(result);
+
+    self.gc.countDown(right);
+    self.gc.countDown(left);
 }
 
 fn binaryOp(self: *VM, op: Instruction) !void {
@@ -331,6 +368,7 @@ fn call(self: *VM, arg_count: u8) !void {
 
     switch (callee) {
         .native => try self.nativeCall(callee.native, arg_count),
+        .function => try self.functionCall(callee.function, arg_count),
         else => try self.runtimeError("Can only call functions. '{}' is not callable", .{callee}),
     }
 }
@@ -346,8 +384,15 @@ fn nativeCall(self: *VM, callee: Value.Native, arg_count: u8) !void {
     try self.push(ret_val);
 }
 
-fn defineFunction(self: *VM) !void {
-    _ = self;
+fn functionCall(self: *VM, callee: Value.Function, arg_count: u8) !void {
+    _ = callee;
+
+    var arg_idx = arg_count;
+    while (arg_idx >= 0) : (arg_idx -= 1) {
+        try self.pushLocal(self.peek(arg_idx));
+    }
+
+    self.call_stack[self.call_stack_top] = .{ .return_addr = self.ip };
 }
 
 fn readByte(self: *VM) u8 {
@@ -371,19 +416,26 @@ fn pop(self: *VM) Value {
     if (self.stack_top == 0) {
         @panic("Stack cannot be lowered");
     }
+    const frame_end = self.frame_start + self.current_frame.len - 1;
+    const value = self.current_frame[self.current_frame.len - 1];
+    self.current_frame = self.stack[self.frame_start..frame_end];
 
     self.stack_top -= 1;
-    const value = self.stack[self.stack_top];
     self.gc.countDown(value);
     return value;
 }
 
 fn push(self: *VM, value: Value) !void {
-    if (self.stack_top == STACK_MAX) {
+    if (self.current_frame.len == STACK_MAX) {
         try self.runtimeError("Stack overflow", .{});
         return Error.StackOverflow;
     }
-    self.stack[self.stack_top] = value;
+    const insert_idx = self.current_frame.len;
+
+    const frame_end = self.frame_start + insert_idx + 1;
+    self.current_frame = self.stack[self.frame_start..frame_end];
+    self.current_frame[insert_idx] = value;
+
     self.stack_top += 1;
     try self.gc.countUp(value);
 }
