@@ -160,7 +160,7 @@ fn run(self: *VM) !void {
         }
         switch (instruction) {
             .NUMBER, .STRING, .CONSTANTS_DONE, .FUNCTION_END => return Error.UnexpectedInstruction,
-            .RETURN => unreachable,
+            .RETURN => self.returnFromFunction(),
             .CALL => try self.call(self.readByte()),
             .FUNCTION_START => {
                 const arity = self.readByte();
@@ -385,14 +385,27 @@ fn nativeCall(self: *VM, callee: Value.Native, arg_count: u8) !void {
 }
 
 fn functionCall(self: *VM, callee: Value.Function, arg_count: u8) !void {
-    _ = callee;
+    if (callee.arity != arg_count) {
+        try self.runtimeError("Function call expects {d} arguments, got {d}", .{ callee.arity, arg_count });
+        return;
+    }
 
-    var arg_idx = arg_count;
-    while (arg_idx >= 0) : (arg_idx -= 1) {
-        try self.pushLocal(self.peek(arg_idx));
+    for (0..arg_count) |i| {
+        try self.pushLocal(self.peek(arg_count - 1 - i));
+    }
+    for (0..arg_count) |_| {
+        _ = self.pop();
     }
 
     self.call_stack[self.call_stack_top] = .{ .return_addr = self.ip };
+    self.call_stack_top += 1;
+    self.ip = callee.start_instruction;
+}
+
+fn returnFromFunction(self: *VM) void {
+    self.call_stack_top -= 1;
+    const ret_addr = self.call_stack[self.call_stack_top].return_addr;
+    self.ip = ret_addr;
 }
 
 fn readByte(self: *VM) u8 {

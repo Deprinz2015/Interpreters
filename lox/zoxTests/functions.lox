@@ -1,11 +1,11 @@
 fun debug(a, b) {
-    print a;
-    print b;
+    print a + b;
 }
 
 fun double(a) {
     return a * 2;
 }
 
-debug(1, double(2));
-debug(2, 3);
+debug("out: ", double(3));
+print double(2);
+
