@@ -34,7 +34,7 @@ pub fn deinit(self: *GC) void {
             std.debug.print("[GC] cleaning up addr 0x{x}\n", .{getPtrFromValue(obj.value)});
         }
 
-        obj.value.destroy(self.alloc);
+        obj.value.destroy(self);
     }
     self.ref_counts.deinit();
 }
@@ -72,7 +72,7 @@ pub fn countDown(self: *GC, value: Value) void {
             std.debug.print("[GC] freeing addr 0x{x}\n", .{ptr});
         }
 
-        count_ptr.value.destroy(self.alloc);
+        count_ptr.value.destroy(self);
         _ = self.ref_counts.remove(ptr);
     }
 }

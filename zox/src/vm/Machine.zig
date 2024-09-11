@@ -17,7 +17,6 @@ const CallStackEntry = struct {
     return_addr: usize,
 };
 
-alloc: Allocator,
 constants: [256]Value,
 constants_count: usize,
 globals: std.StringHashMap(Value),
@@ -48,7 +47,6 @@ const Error = error{
 
 pub fn init(alloc: Allocator, program: []const u8) !VM {
     return .{
-        .alloc = alloc,
         .constants = undefined,
         .constants_count = 0,
         .locals = undefined,
@@ -78,10 +76,10 @@ pub fn deinit(self: *VM) void {
 
         self.gc.countDown(constant);
     }
-    self.alloc.free(self.stack);
+    self.gc.alloc.free(self.stack);
     var string_iter = self.strings.keyIterator();
     while (string_iter.next()) |string| {
-        self.alloc.free(string.*);
+        self.gc.alloc.free(string.*);
     }
     self.strings.deinit();
     self.gc.deinit();
@@ -100,7 +98,7 @@ pub fn execute(self: *VM) !void {
 /// Otherwise frees the memory of the passed string and returns the already saved string. Usage of the passed string is not safe.
 fn internString(self: *VM, string: []const u8) ![]const u8 {
     if (self.strings.getKey(string)) |interned_string| {
-        self.alloc.free(string);
+        self.gc.alloc.free(string);
         return interned_string;
     }
 
@@ -170,7 +168,7 @@ fn loadConstants(self: *VM) !void {
                 };
 
                 const value = self.code[idx + 3 .. idx + 3 + len];
-                const string = try Value.String.copyString(value, self.alloc);
+                const string = try Value.String.copyString(value, self.gc.alloc);
                 try self.gc.countUp(string);
                 self.constants[self.constants_count] = string;
                 try self.strings.put(string.string.value, undefined);
@@ -327,9 +325,9 @@ fn concat(self: *VM) !void {
     const right = self.pop();
     const left = self.pop();
 
-    const concatted = try std.fmt.allocPrint(self.alloc, "{}{}", .{ left, right });
+    const concatted = try std.fmt.allocPrint(self.gc.alloc, "{}{}", .{ left, right });
     const interned = try self.internString(concatted);
-    const result = try Value.String.takeString(interned, self.alloc);
+    const result = try Value.String.takeString(interned, self.gc.alloc);
 
     try self.push(result);
 

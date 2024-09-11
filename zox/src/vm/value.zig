@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const VM = @import("Machine.zig");
+const GC = @import("GC.zig");
 
 /// Runtime, to be used in Machine.zig
 /// This uses dynamically allocated memory
@@ -12,10 +13,10 @@ pub const Value = union(enum) {
     native: Native,
     function: Function,
 
-    pub fn destroy(self: Value, alloc: Allocator) void {
+    pub fn destroy(self: Value, gc: *GC) void {
         switch (self) {
             .number, .boolean, .nil, .native, .function => {},
-            .string => alloc.destroy(self.string),
+            .string => gc.alloc.destroy(self.string),
         }
     }
 
