@@ -1,6 +1,9 @@
 fun test() {
+    var out = "outer";
     fun inner() {
-        print "inner";
+        var in = "inner";
+        print out;
+        print in;
     }
 
     return inner;
