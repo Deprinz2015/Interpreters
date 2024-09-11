@@ -36,4 +36,6 @@ pub const Instruction = enum(u8) {
     JUMP_BACK,
     CALL,
     RETURN,
+    CLOSURE_BEGIN,
+    CLOSURE_END,
 };

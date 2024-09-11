@@ -1,0 +1,10 @@
+fun test() {
+    fun inner() {
+        print "inner";
+    }
+
+    return inner;
+}
+
+var inner_fun = test();
+inner_fun();
