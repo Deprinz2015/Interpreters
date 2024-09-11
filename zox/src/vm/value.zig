@@ -95,8 +95,4 @@ pub const Value = union(enum) {
         arity: u8,
         start_instruction: usize,
     };
-
-    pub const Call = struct {
-        return_adr: usize,
-    };
 };
