@@ -6,9 +6,16 @@ const Value = @import("value.zig").Value;
 
 const Compiler = @This();
 
+const FunctionEntry = struct {
+    arity: u8,
+    name: u8, // Index of Constant
+    code: []u8,
+};
+
 code: std.ArrayList(u8),
 constants: [256]Value = undefined, // Max 256 constants are allowed
 constants_count: usize = 0,
+functions: std.ArrayList(FunctionEntry),
 alloc: Allocator,
 program: []*ast.Stmt,
 has_error: bool = false,
@@ -100,6 +107,7 @@ const TreeWalker = struct {
                 self.writeOp(.RETURN);
             },
             .function => |function| {
+                // TODO:
                 if (self.enclosing != null) {
                     @panic("Only top-level functions are allowed");
                 }
@@ -110,13 +118,18 @@ const TreeWalker = struct {
                 }
 
                 const code = self.traverseBlock(function.body);
-                defer self.compiler.alloc.free(code);
 
-                self.writeOperand(.FUNCTION_START, @intCast(function.params.len));
-                self.code.appendSlice(code) catch @panic("Out of Memory");
-                self.writeOp(.FUNCTION_END);
-
-                self.resolveName(function.name.lexeme);
+                const name_str: Value = .{ .string = function.name.lexeme };
+                const name = self.compiler.saveConstant(name_str) catch {
+                    printError("Could not save constant string '{s}'", .{function.name.lexeme});
+                    self.compiler.has_error = true;
+                    return;
+                };
+                self.compiler.saveFunction(code, @intCast(function.params.len), name) catch {
+                    printError("Could not save function '{s}'", .{function.name.lexeme});
+                    self.compiler.has_error = true;
+                    return;
+                };
             },
         }
     }
@@ -325,6 +338,7 @@ pub fn translate(program: []*ast.Stmt, alloc: Allocator) ![]u8 {
         .alloc = alloc,
         .program = program,
         .code = .init(alloc),
+        .functions = .init(alloc),
     };
     defer compiler.deinit();
     try compiler.compile();
@@ -338,6 +352,7 @@ pub fn translate(program: []*ast.Stmt, alloc: Allocator) ![]u8 {
 
 fn deinit(self: *Compiler) void {
     self.code.deinit();
+    self.functions.deinit();
 }
 
 fn compile(self: *Compiler) !void {
@@ -352,11 +367,31 @@ fn compile(self: *Compiler) !void {
         try self.code.appendSlice(code);
     }
 
+    try self.insertFunctions();
     try self.insertConstants();
 }
 
 fn toBytecode(self: *Compiler) ![]u8 {
     return try self.code.toOwnedSlice();
+}
+
+fn insertFunctions(self: *Compiler) !void {
+    var functions_code: std.ArrayList(u8) = .init(self.alloc);
+    defer functions_code.deinit();
+
+    for (self.functions.items) |function| {
+        try functions_code.append(@intFromEnum(Instruction.FUNCTION_START));
+        try functions_code.append(function.name);
+        try functions_code.append(function.arity);
+        try functions_code.appendSlice(function.code);
+        self.alloc.free(function.code);
+    }
+
+    try functions_code.append(@intFromEnum(Instruction.FUNCTIONS_DONE));
+    const functions_raw = try functions_code.toOwnedSlice();
+    defer self.alloc.free(functions_raw);
+
+    try self.code.insertSlice(0, functions_raw);
 }
 
 fn insertConstants(self: *Compiler) !void {
@@ -419,6 +454,10 @@ fn saveConstant(self: *Compiler, value: Value) !u8 {
     self.constants[self.constants_count] = value;
     self.constants_count += 1;
     return @intCast(self.constants_count - 1);
+}
+
+fn saveFunction(self: *Compiler, code: []u8, arity: u8, name: u8) !void {
+    try self.functions.append(.{ .code = code, .arity = arity, .name = name });
 }
 
 fn printError(comptime format: []const u8, args: anytype) void {

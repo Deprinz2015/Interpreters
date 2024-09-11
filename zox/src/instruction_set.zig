@@ -4,6 +4,8 @@ pub const Instruction = enum(u8) {
     STRING,
     CONSTANTS_DONE, // Marks end of constant definition
     CONSTANT,
+    FUNCTION_START,
+    FUNCTIONS_DONE, // Marks end of top-level function definitions
     TRUE,
     FALSE,
     NIL,
@@ -32,8 +34,6 @@ pub const Instruction = enum(u8) {
     JUMP_IF_FALSE,
     JUMP_IF_TRUE,
     JUMP_BACK,
-    FUNCTION_START,
-    FUNCTION_END,
     CALL,
     RETURN,
 };

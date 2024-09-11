@@ -91,6 +91,7 @@ pub fn execute(self: *VM) !void {
     self.current_frame = &.{};
     try self.loadConstants();
     try self.registerNatives();
+    try self.loadFunctions();
     try self.run();
 }
 
@@ -105,6 +106,44 @@ fn internString(self: *VM, string: []const u8) ![]const u8 {
 
     try self.strings.put(string, undefined);
     return string;
+}
+
+fn loadFunctions(self: *VM) !void {
+    var idx = self.ip;
+    var current_function: ?Value.Function = null;
+    var current_function_name: u8 = undefined;
+    while (idx < self.code.len) {
+        const code = self.code[idx];
+        const instruction: Instruction = @enumFromInt(code);
+        switch (instruction) {
+            .FUNCTION_START => {
+                if (current_function) |function| {
+                    const name = self.constants[current_function_name];
+                    if (name != .string) unreachable; // weird
+                    try self.globals.put(name.string.value, .{ .function = function });
+                }
+
+                current_function_name = self.code[idx + 1];
+                const arity = self.code[idx + 2];
+
+                current_function = .{ .arity = arity, .start_instruction = idx + 3 };
+                idx += 3;
+            },
+            .FUNCTIONS_DONE => {
+                if (current_function) |function| {
+                    const name = self.constants[current_function_name];
+                    if (name != .string) unreachable; // weird
+                    try self.globals.put(name.string.value, .{ .function = function });
+                }
+                self.ip = idx + 1;
+                return;
+            },
+            .JUMP, .JUMP_IF_TRUE, .JUMP_IF_FALSE, .JUMP_BACK => idx += 3,
+            .CALL, .LOCAL_GET, .LOCAL_SET, .LOCAL_SET_AT, .GLOBAL_GET, .GLOBAL_SET, .GLOBAL_DEFINE, .CONSTANT => idx += 2,
+            .LOCAL_POP, .RETURN, .NIL, .TRUE, .FALSE, .NOT, .NEGATE, .ADD, .SUB, .MUL, .DIV, .POP, .PRINT, .EQUAL, .NOT_EQUAL, .LESS, .LESS_EQUAL, .GREATER, .GREATER_EQUAL => idx += 1,
+            .NUMBER, .STRING, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
+        }
+    }
 }
 
 fn loadConstants(self: *VM) !void {
@@ -151,21 +190,13 @@ fn run(self: *VM) !void {
     while (self.ip < self.code.len) {
         const byte = self.readByte();
         const instruction: Instruction = @enumFromInt(byte);
-        if (self.current_fn) |function| {
-            if (instruction == .FUNCTION_END) {
-                try self.push(.{ .function = function });
-                self.current_fn = null;
-            }
-            continue;
-        }
         switch (instruction) {
-            .NUMBER, .STRING, .CONSTANTS_DONE, .FUNCTION_END => return Error.UnexpectedInstruction,
+            .NUMBER, .STRING, .CONSTANTS_DONE, .FUNCTIONS_DONE, .FUNCTION_START => {
+                std.debug.print("{}\n", .{instruction});
+                return Error.UnexpectedInstruction;
+            },
             .RETURN => self.returnFromFunction(),
             .CALL => try self.call(self.readByte()),
-            .FUNCTION_START => {
-                const arity = self.readByte();
-                self.current_fn = .{ .arity = arity, .start_instruction = self.ip };
-            },
             .POP => _ = self.pop(),
             .NOT => {
                 try self.gc.countUp(self.peek(0));

@@ -102,8 +102,8 @@ pub fn print(self: *Disassembler) !void {
             .JUMP_BACK => self.jumpInstruction("OP_JUMP_BACK", false),
             .CALL => self.operandInstruction("OP_CALL"),
             .RETURN => self.simpleInstruction("OP_RETURN"),
-            .FUNCTION_START => self.operandInstruction("OP_FUNCTION_START"),
-            .FUNCTION_END => self.simpleInstruction("OP_FUNCTION_END"),
+            .FUNCTION_START => self.functionInstruction("OP_FUNCTION_START"),
+            .FUNCTIONS_DONE => self.simpleInstruction("OP_FUNCTION_DONE"),
         }
     }
 }
@@ -123,6 +123,14 @@ fn constantInstruction(self: *Disassembler, name: []const u8) void {
     const constant = self.constants[idx];
     std.debug.print("{s: <24} {d: <8} {}\n", .{ name, idx, constant });
     self.ip += 2;
+}
+
+fn functionInstruction(self: *Disassembler, name: []const u8) void {
+    const name_idx = self.code[self.ip + 1];
+    const name_value = self.constants[name_idx].string;
+    const arity = self.code[self.ip + 2];
+    std.debug.print("{s: <24} {s: <8} {d}\n", .{ name, name_value, arity });
+    self.ip += 3;
 }
 
 fn valueInstruction(self: *Disassembler, name: []const u8, value_type: std.meta.Tag(Value)) void {

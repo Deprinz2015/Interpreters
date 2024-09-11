@@ -2,10 +2,10 @@ fun debug(a, b) {
     print a + b;
 }
 
+debug("out: ", double(3));
+print double(2);
+
 fun double(a) {
     return a * 2;
 }
-
-debug("out: ", double(3));
-print double(2);
 
