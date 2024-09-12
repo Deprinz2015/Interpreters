@@ -48,8 +48,8 @@ pub fn main() !u8 {
             },
         },
     }).init(alloc);
-    try parser.parse();
     defer parser.deinit();
+    try parser.parse();
 
     if (parser.options.help) {
         try parser.help(std.io.getStdOut().writer());

@@ -93,8 +93,8 @@ pub fn print(self: *Disassembler) !void {
             .GLOBAL_GET => self.constantInstruction("OP_GLOBAL_GET"),
             .GLOBAL_SET => self.constantInstruction("OP_GLOBAL_SET"),
             .LOCAL_GET => self.operandInstruction("OP_LOCAL_GET"),
-            .LOCAL_SET => self.simpleInstruction("OP_LOCAL_SET"),
-            .LOCAL_SET_AT => self.operandInstruction("OP_LOCAL_SET_AT"),
+            .LOCAL_SET => self.operandInstruction("OP_LOCAL_SET"),
+            .LOCAL_DEFINE => self.simpleInstruction("OP_LOCAL_DEFINE"),
             .LOCAL_POP => self.simpleInstruction("OP_LOCAL_POP"),
             .JUMP => self.jumpInstruction("OP_JUMP", true),
             .JUMP_IF_FALSE => self.jumpInstruction("OP_JUMP_IF_FALSE", true),
@@ -104,6 +104,12 @@ pub fn print(self: *Disassembler) !void {
             .RETURN => self.simpleInstruction("OP_RETURN"),
             .FUNCTION_START => self.functionInstruction("OP_FUNCTION_START"),
             .FUNCTIONS_DONE => self.simpleInstruction("OP_FUNCTION_DONE"),
+            .CLOSURE_START => self.operandInstruction("OP_CLOSURE_START"),
+            .CLOSURE_END => self.simpleInstruction("OP_CLOSURE_END"),
+            .UPVALUE_DONE => self.simpleInstruction("OP_UPVALUE_DONE"),
+            .UPVALUE_DEFINE => self.operandInstruction("OP_UPVALUE_DEFINE"),
+            .UPVALUE_SET => self.operandInstruction("OP_UPVALUE_SET"),
+            .UPVALUE_GET => self.operandInstruction("OP_UPVALUE_GET"),
         }
     }
 }

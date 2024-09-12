@@ -139,8 +139,8 @@ fn loadFunctions(self: *VM) !void {
                 return;
             },
             .JUMP, .JUMP_IF_TRUE, .JUMP_IF_FALSE, .JUMP_BACK => idx += 3,
-            .CALL, .LOCAL_GET, .LOCAL_SET, .LOCAL_SET_AT, .GLOBAL_GET, .GLOBAL_SET, .GLOBAL_DEFINE, .CONSTANT => idx += 2,
-            .LOCAL_POP, .RETURN, .NIL, .TRUE, .FALSE, .NOT, .NEGATE, .ADD, .SUB, .MUL, .DIV, .POP, .PRINT, .EQUAL, .NOT_EQUAL, .LESS, .LESS_EQUAL, .GREATER, .GREATER_EQUAL => idx += 1,
+            .UPVALUE_DEFINE, .UPVALUE_SET, .UPVALUE_GET, .CLOSURE_START, .CALL, .LOCAL_GET, .LOCAL_SET, .GLOBAL_GET, .GLOBAL_SET, .GLOBAL_DEFINE, .CONSTANT => idx += 2,
+            .UPVALUE_DONE, .CLOSURE_END, .LOCAL_DEFINE, .LOCAL_POP, .RETURN, .NIL, .TRUE, .FALSE, .NOT, .NEGATE, .ADD, .SUB, .MUL, .DIV, .POP, .PRINT, .EQUAL, .NOT_EQUAL, .LESS, .LESS_EQUAL, .GREATER, .GREATER_EQUAL => idx += 1,
             .NUMBER, .STRING, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
         }
     }
@@ -191,10 +191,11 @@ fn run(self: *VM) !void {
         const byte = self.readByte();
         const instruction: Instruction = @enumFromInt(byte);
         switch (instruction) {
-            .NUMBER, .STRING, .CONSTANTS_DONE, .FUNCTIONS_DONE, .FUNCTION_START => {
+            .NUMBER, .STRING, .CONSTANTS_DONE, .FUNCTIONS_DONE, .FUNCTION_START, .CLOSURE_END => {
                 std.debug.print("{}\n", .{instruction});
                 return Error.UnexpectedInstruction;
             },
+            .UPVALUE_DEFINE, .UPVALUE_SET, .UPVALUE_GET, .UPVALUE_DONE, .CLOSURE_START => unreachable,
             .RETURN => self.returnFromFunction(),
             .CALL => try self.call(self.readByte()),
             .POP => _ = self.pop(),
@@ -280,12 +281,12 @@ fn run(self: *VM) !void {
                 const idx = self.readByte();
                 try self.push(self.localAt(idx));
             },
-            .LOCAL_SET => {
+            .LOCAL_DEFINE => {
                 const value = self.peek(0);
                 try self.pushLocal(value);
                 _ = self.pop();
             },
-            .LOCAL_SET_AT => {
+            .LOCAL_SET => {
                 const idx = self.readByte();
                 const old = self.localAt(idx);
                 try self.setLocalAt(idx, self.peek(0));

@@ -31,10 +31,17 @@ const Error = error{
 
 // TODO: Extract some functions out for readability?
 const TreeWalker = struct {
+    const UpvalueEntry = struct {
+        local_idx: u8,
+        name: []const u8,
+    };
+
     code: std.ArrayList(u8),
     compiler: *Compiler,
     locals: [256][]const u8,
     locals_count: usize,
+    upvalues: [256]UpvalueEntry,
+    upvalues_count: usize,
     enclosing: ?*TreeWalker,
 
     fn init(compiler: *Compiler, enclosing: ?*TreeWalker) TreeWalker {
@@ -43,6 +50,8 @@ const TreeWalker = struct {
             .code = .init(compiler.alloc),
             .locals = undefined,
             .locals_count = 0,
+            .upvalues = undefined,
+            .upvalues_count = 0,
             .enclosing = enclosing,
         };
     }
@@ -63,8 +72,18 @@ const TreeWalker = struct {
                 } else {
                     self.writeOp(.NIL);
                 }
-
-                self.resolveName(decl.name.lexeme);
+                if (self.enclosing == null) {
+                    const name: Value = .{ .string = decl.name.lexeme };
+                    const idx = self.compiler.saveConstant(name) catch {
+                        self.compiler.printError("Could not save constant string '{s}'", .{name.string});
+                        return;
+                    };
+                    self.writeOperand(.GLOBAL_DEFINE, idx);
+                } else {
+                    self.locals[self.locals_count] = decl.name.lexeme;
+                    self.locals_count += 1;
+                    self.writeOp(.LOCAL_DEFINE);
+                }
             },
             .block => |block| {
                 const code = self.traverseBlock(block.stmts);
@@ -107,29 +126,35 @@ const TreeWalker = struct {
                 self.writeOp(.RETURN);
             },
             .function => |function| {
-                // TODO:
-                if (self.enclosing != null) {
-                    @panic("Only top-level functions are allowed");
-                }
-
                 for (function.params) |param| {
                     self.locals[self.locals_count] = param.lexeme;
                     self.locals_count += 1;
                 }
 
+                std.debug.print("closure: {}\n", .{self.enclosing != null});
                 const code = self.traverseBlock(function.body);
 
-                const name_str: Value = .{ .string = function.name.lexeme };
-                const name = self.compiler.saveConstant(name_str) catch {
-                    printError("Could not save constant string '{s}'", .{function.name.lexeme});
-                    self.compiler.has_error = true;
-                    return;
-                };
-                self.compiler.saveFunction(code, @intCast(function.params.len), name) catch {
-                    printError("Could not save function '{s}'", .{function.name.lexeme});
-                    self.compiler.has_error = true;
-                    return;
-                };
+                if (self.enclosing == null) {
+                    const name_str: Value = .{ .string = function.name.lexeme };
+                    const name = self.compiler.saveConstant(name_str) catch {
+                        self.compiler.printError("Could not save constant string '{s}'", .{function.name.lexeme});
+                        return;
+                    };
+                    self.compiler.saveFunction(code, @intCast(function.params.len), name) catch self.compiler.printError("Could not save function '{s}'", .{function.name.lexeme});
+                } else {
+                    self.writeOperand(.CLOSURE_START, @intCast(function.params.len));
+                    for (self.upvalues, 0..) |upvalue, i| {
+                        if (i >= self.upvalues_count) {
+                            break;
+                        }
+
+                        self.writeOperand(.UPVALUE_DEFINE, upvalue.local_idx);
+                    }
+                    self.writeOp(.UPVALUE_DONE);
+                    self.code.appendSlice(code) catch @panic("Out of Memory");
+                    self.compiler.alloc.free(code);
+                    self.writeOp(.CLOSURE_END);
+                }
             },
         }
     }
@@ -162,58 +187,40 @@ const TreeWalker = struct {
                 }
             },
             .literal => |literal| switch (literal.value) {
+                .boolean => |b| self.writeOp(if (b) .TRUE else .FALSE),
+                .nil => self.writeOp(.NIL),
                 .number => |num| {
                     const idx = self.compiler.saveConstant(.{ .number = num }) catch {
-                        printError("Could not save constant number '{d}'", .{num});
-                        self.compiler.has_error = true;
+                        self.compiler.printError("Could not save constant number '{d}'", .{num});
                         return;
                     };
                     self.writeOperand(.CONSTANT, idx);
                 },
-                .boolean => |b| self.writeOp(if (b) .TRUE else .FALSE),
-                .nil => self.writeOp(.NIL),
                 .string => |str| {
                     const string: Value = .{ .string = str };
                     const idx = self.compiler.saveConstant(string) catch {
-                        printError("Could not save constant string '{s}'", .{str});
-                        self.compiler.has_error = true;
+                        self.compiler.printError("Could not save constant string '{s}'", .{str});
                         return;
                     };
                     self.writeOperand(.CONSTANT, idx);
                 },
             },
-            .variable => |variable| variable: {
-                if (self.enclosing != null) {
-                    const maybe_idx = self.resolveLocal(variable.name.lexeme);
-                    if (maybe_idx) |idx| {
-                        self.writeOperand(.LOCAL_GET, idx);
-                        break :variable;
-                    }
+            .variable => |variable| if (self.resolveVariabe(variable.name.lexeme)) |result| {
+                switch (result.type) {
+                    .LOCAL => self.writeOperand(.LOCAL_GET, result.idx),
+                    .GLOBAL => self.writeOperand(.GLOBAL_GET, result.idx),
+                    .UPVALUE => self.writeOperand(.UPVALUE_GET, result.idx),
                 }
-                const name: Value = .{ .string = variable.name.lexeme };
-                const idx = self.compiler.saveConstant(name) catch {
-                    printError("Could not save constant string '{s}'", .{name.string});
-                    self.compiler.has_error = true;
-                    return;
-                };
-                self.writeOperand(.GLOBAL_GET, idx);
             },
-            .assignment => |assignment| assignment: {
+            .assignment => |assignment| {
                 self.traverseExpression(assignment.value);
-                if (self.enclosing != null) {
-                    const maybe_idx = self.resolveLocal(assignment.name.lexeme);
-                    if (maybe_idx) |idx| {
-                        self.writeOperand(.LOCAL_SET_AT, idx);
-                        break :assignment;
+                if (self.resolveVariabe(assignment.name.lexeme)) |result| {
+                    switch (result.type) {
+                        .LOCAL => self.writeOperand(.LOCAL_SET, result.idx),
+                        .GLOBAL => self.writeOperand(.GLOBAL_SET, result.idx),
+                        .UPVALUE => self.writeOperand(.UPVALUE_SET, result.idx),
                     }
                 }
-                const name: Value = .{ .string = assignment.name.lexeme };
-                const idx = self.compiler.saveConstant(name) catch {
-                    printError("Could not save constant string '{s}'", .{name.string});
-                    self.compiler.has_error = true;
-                    return;
-                };
-                self.writeOperand(.GLOBAL_SET, idx);
             },
             .logical => |logical| {
                 self.traverseExpression(logical.left);
@@ -252,20 +259,102 @@ const TreeWalker = struct {
         return walker.code.toOwnedSlice() catch @panic("Out of Memory");
     }
 
-    fn resolveName(self: *TreeWalker, name: []const u8) void {
-        if (self.enclosing == null) {
-            const string: Value = .{ .string = name };
-            const idx = self.compiler.saveConstant(string) catch {
-                printError("Could not save constant string '{s}'", .{name});
-                self.compiler.has_error = true;
+    fn resolveAssign(self: *TreeWalker, string: []const u8) void {
+        if (self.enclosing != null) {
+            // 1. search for local
+            // 2. search for existing upvalue
+            // 3. search upwards for locals and turn them into upvalue
+
+            // 1.
+            if (self.getLocalIdx(string)) |idx| {
+                self.writeOperand(.LOCAL_SET_AT, idx);
                 return;
-            };
-            self.writeOperand(.GLOBAL_DEFINE, idx);
-        } else {
-            self.locals[self.locals_count] = name;
-            self.locals_count += 1;
-            self.writeOp(.LOCAL_SET);
+            }
+
+            //                              2.                               3.
+            const maybe_upvalue = self.getUpvalueIdx(string) orelse self.findNewUpvalue(string);
+            if (maybe_upvalue) |idx| {
+                self.writeOperand(.UPVALUE_GET, idx);
+                return;
+            }
         }
+        // Global scope or no local/upvalue found
+        const name: Value = .{ .string = string };
+        const idx = self.compiler.saveConstant(name) catch {
+            printError("Could not save constant string '{s}'", .{name.string});
+            self.compiler.has_error = true;
+            return;
+        };
+        self.writeOperand(.GLOBAL_GET, idx);
+    }
+
+    fn resolveVariabe(self: *TreeWalker, string: []const u8) ?struct {
+        type: enum { LOCAL, GLOBAL, UPVALUE },
+        idx: u8,
+    } {
+        if (self.enclosing != null) {
+            // 1. search for local
+            // 2. search for existing upvalue
+            // 3. search upwards for locals and turn them into upvalue
+
+            std.debug.print("searching for {s}\n", .{string});
+            // 1.
+            if (self.getLocalIdx(string)) |idx| {
+                std.debug.print("found local {s} at {d}\n", .{ string, idx });
+                return .{ .type = .LOCAL, .idx = idx };
+            }
+
+            //                              2.                               3.
+            const maybe_upvalue = self.getUpvalueIdx(string) orelse self.findNewUpvalue(string);
+            if (maybe_upvalue) |idx| {
+                return .{ .type = .UPVALUE, .idx = idx };
+            }
+        }
+        // Global scope or no local/upvalue found
+        const name: Value = .{ .string = string };
+        const idx = self.compiler.saveConstant(name) catch {
+            self.compiler.printError("Could not save constant string '{s}'", .{name.string});
+            return null;
+        };
+        return .{ .type = .GLOBAL, .idx = idx };
+    }
+
+    fn getLocalIdx(self: *TreeWalker, name: []const u8) ?u8 {
+        for (self.locals, 0..) |local, i| {
+            if (i >= self.locals_count) {
+                break;
+            }
+            if (std.mem.eql(u8, local, name)) {
+                return @intCast(self.locals_count - i);
+            }
+        }
+        return 0;
+    }
+
+    fn getUpvalueIdx(self: *TreeWalker, name: []const u8) ?u8 {
+        for (self.upvalues, 0..) |upvalue, i| {
+            if (i >= self.upvalues_count) {
+                break;
+            }
+            if (std.mem.eql(u8, upvalue.name, name)) {
+                return @intCast(self.upvalues_count - i);
+            }
+        }
+        return null;
+    }
+
+    fn findNewUpvalue(self: *TreeWalker, name: []const u8) ?u8 {
+        if (self.enclosing == null) {
+            return null; // This should not even happen
+        }
+
+        if (self.resolveLocal(name)) |idx| {
+            self.upvalues[self.upvalues_count] = .{ .local_idx = idx, .name = name };
+            self.upvalues_count += 1;
+            return @intCast(self.upvalues_count - 1);
+        }
+
+        return null;
     }
 
     fn resolveLocal(self: *TreeWalker, name: []const u8) ?u8 {
@@ -311,8 +400,7 @@ const TreeWalker = struct {
 
     fn writeJumpComplete(self: *TreeWalker, jump: Instruction, idx: usize) void {
         if (idx > std.math.maxInt(u16)) {
-            printError("Too much code to jump: {d}", .{idx});
-            self.compiler.has_error = true;
+            self.compiler.printError("Too much code to jump: {d}", .{idx});
         }
 
         self.writeOp(jump);
@@ -324,8 +412,7 @@ const TreeWalker = struct {
         const jump = self.code.items.len - jump_idx - 2;
 
         if (jump > std.math.maxInt(u16)) {
-            printError("Too much code to jump: {d}", .{jump});
-            self.compiler.has_error = true;
+            self.compiler.printError("Too much code to jump: {d}", .{jump});
         }
 
         self.code.items[jump_idx] = @intCast((jump >> 8) & 0xff);
@@ -460,8 +547,9 @@ fn saveFunction(self: *Compiler, code: []u8, arity: u8, name: u8) !void {
     try self.functions.append(.{ .code = code, .arity = arity, .name = name });
 }
 
-fn printError(comptime format: []const u8, args: anytype) void {
+fn printError(self: *Compiler, comptime format: []const u8, args: anytype) void {
     const StdErr = std.io.getStdErr().writer();
     StdErr.print(format, args) catch {};
     StdErr.writeByte('\n') catch {};
+    self.has_error = true;
 }
