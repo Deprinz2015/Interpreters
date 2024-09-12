@@ -3,10 +3,16 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const debug_gc = b.option(bool, "debug-gc", "Enable Debugging Output of GC");
+    const debug_stack = b.option(bool, "debug-stack", "Enable Debugging Output of Value Stack");
+    const debug_local = b.option(bool, "debug-local", "Enable Debugging Output of Locals Stack");
+
     const zli = b.dependency("zli", .{ .target = target, .optimize = optimize });
 
     var config = b.addOptions();
-    config.addOption(bool, "GC_DEBUG", optimize == .Debug);
+    config.addOption(bool, "DEBUG_GC", debug_gc orelse (optimize == .Debug));
+    config.addOption(bool, "DEBUG_STACK", debug_stack orelse (optimize == .Debug));
+    config.addOption(bool, "DEBUG_LOCAL", debug_local orelse (optimize == .Debug));
 
     const exe = b.addExecutable(.{
         .name = "zox",

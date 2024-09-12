@@ -7,6 +7,8 @@ const natives = @import("native_functions.zig");
 const StdOut = std.io.getStdOut().writer();
 const StdErr = std.io.getStdErr().writer();
 
+const StackDebug = @import("../debug/Stack.zig");
+
 const VM = @This();
 
 const CALL_STACK_MAX = 64;
@@ -310,7 +312,15 @@ fn run(self: *VM) !void {
                 }
             },
         }
-        // @import("../debug/Stack.zig").print(self.stack, self.stack_top);
+
+        if (comptime @import("config").DEBUG_STACK) {
+            std.debug.print("Stack: ", .{});
+            StackDebug.print(self.stack, self.stack_top);
+        }
+        if (comptime @import("config").DEBUG_LOCAL) {
+            std.debug.print("Locals: ", .{});
+            StackDebug.print(&self.locals, self.locals_count);
+        }
 
         if (self.has_error) {
             return Error.RuntimeError;
