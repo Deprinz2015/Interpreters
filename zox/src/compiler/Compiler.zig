@@ -131,7 +131,6 @@ const TreeWalker = struct {
                     self.locals_count += 1;
                 }
 
-                std.debug.print("closure: {}\n", .{self.enclosing != null});
                 const code = self.traverseBlock(function.body);
 
                 if (self.enclosing == null) {
@@ -154,6 +153,10 @@ const TreeWalker = struct {
                     self.code.appendSlice(code) catch @panic("Out of Memory");
                     self.compiler.alloc.free(code);
                     self.writeOp(.CLOSURE_END);
+
+                    self.locals[self.locals_count] = function.name.lexeme;
+                    self.locals_count += 1;
+                    self.writeOp(.LOCAL_DEFINE);
                 }
             },
         }
@@ -297,10 +300,8 @@ const TreeWalker = struct {
             // 2. search for existing upvalue
             // 3. search upwards for locals and turn them into upvalue
 
-            std.debug.print("searching for {s}\n", .{string});
             // 1.
             if (self.getLocalIdx(string)) |idx| {
-                std.debug.print("found local {s} at {d}\n", .{ string, idx });
                 return .{ .type = .LOCAL, .idx = idx };
             }
 
@@ -328,16 +329,21 @@ const TreeWalker = struct {
                 return @intCast(self.locals_count - i);
             }
         }
-        return 0;
+        return null;
     }
 
     fn getUpvalueIdx(self: *TreeWalker, name: []const u8) ?u8 {
-        for (self.upvalues, 0..) |upvalue, i| {
-            if (i >= self.upvalues_count) {
+        if (self.enclosing == null) {
+            return null;
+        }
+        const upvalues = self.enclosing.?.upvalues;
+        const upvalues_count = self.enclosing.?.upvalues_count;
+        for (upvalues, 0..) |upvalue, i| {
+            if (i >= upvalues_count) {
                 break;
             }
             if (std.mem.eql(u8, upvalue.name, name)) {
-                return @intCast(self.upvalues_count - i);
+                return @intCast(upvalues_count - i);
             }
         }
         return null;
@@ -348,10 +354,12 @@ const TreeWalker = struct {
             return null; // This should not even happen
         }
 
-        if (self.resolveLocal(name)) |idx| {
-            self.upvalues[self.upvalues_count] = .{ .local_idx = idx, .name = name };
-            self.upvalues_count += 1;
-            return @intCast(self.upvalues_count - 1);
+        var upvalues = &self.enclosing.?.upvalues;
+        const upvalues_count = &self.enclosing.?.upvalues_count;
+        if (self.enclosing.?.resolveLocal(name)) |idx| {
+            upvalues[upvalues_count.*] = .{ .local_idx = idx, .name = name };
+            upvalues_count.* += 1;
+            return @intCast(upvalues_count.* - 1);
         }
 
         return null;

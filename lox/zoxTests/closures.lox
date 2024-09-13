@@ -11,3 +11,4 @@ fun test() {
 
 var inner_fun = test();
 inner_fun();
+inner_fun();
