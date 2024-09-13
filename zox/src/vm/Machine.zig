@@ -17,6 +17,7 @@ const TOTAL_STACK_MAX = CALL_STACK_MAX * STACK_MAX;
 
 const CallStackEntry = struct {
     return_addr: usize,
+    closure: ?Value,
 };
 
 constants: [256]Value,
@@ -35,9 +36,6 @@ call_stack: [CALL_STACK_MAX]CallStackEntry,
 call_stack_top: usize,
 current_frame: []Value,
 frame_start: usize,
-/// is used to build up a function. Gets filled on FUNCTION_START and set to null on FUNCTION_END.
-/// While this is not null, no other instruction is executed
-current_fn: ?Value.Function,
 
 const Error = error{
     UnexpectedInstruction,
@@ -65,7 +63,6 @@ pub fn init(alloc: Allocator, program: []const u8) !VM {
         .current_frame = undefined,
         .frame_start = 0,
         .has_error = false,
-        .current_fn = null,
     };
 }
 
@@ -139,8 +136,8 @@ fn loadFunctions(self: *VM) !void {
                 return;
             },
             .JUMP, .JUMP_IF_TRUE, .JUMP_IF_FALSE, .JUMP_BACK => idx += 3,
-            .CALL, .LOCAL_GET, .LOCAL_SET, .LOCAL_SET_AT, .GLOBAL_GET, .GLOBAL_SET, .GLOBAL_DEFINE, .CONSTANT => idx += 2,
-            .LOCAL_POP, .RETURN, .NIL, .TRUE, .FALSE, .NOT, .NEGATE, .ADD, .SUB, .MUL, .DIV, .POP, .PRINT, .EQUAL, .NOT_EQUAL, .LESS, .LESS_EQUAL, .GREATER, .GREATER_EQUAL => idx += 1,
+            .UPVALUE_DEFINE, .UPVALUE_SET, .UPVALUE_GET, .CLOSURE_START, .CALL, .LOCAL_GET, .LOCAL_SET, .GLOBAL_GET, .GLOBAL_SET, .GLOBAL_DEFINE, .CONSTANT => idx += 2,
+            .UPVALUE_DONE, .CLOSURE_END, .LOCAL_DEFINE, .LOCAL_POP, .RETURN, .NIL, .TRUE, .FALSE, .NOT, .NEGATE, .ADD, .SUB, .MUL, .DIV, .POP, .PRINT, .EQUAL, .NOT_EQUAL, .LESS, .LESS_EQUAL, .GREATER, .GREATER_EQUAL => idx += 1,
             .NUMBER, .STRING, .CONSTANTS_DONE => return Error.UnexpectedInstruction,
         }
     }
@@ -191,10 +188,57 @@ fn run(self: *VM) !void {
         const byte = self.readByte();
         const instruction: Instruction = @enumFromInt(byte);
         switch (instruction) {
-            .NUMBER, .STRING, .CONSTANTS_DONE, .FUNCTIONS_DONE, .FUNCTION_START => {
+            .NUMBER, .STRING, .CONSTANTS_DONE, .FUNCTIONS_DONE, .FUNCTION_START, .CLOSURE_END, .UPVALUE_DEFINE, .UPVALUE_DONE => {
                 std.debug.print("{}\n", .{instruction});
                 return Error.UnexpectedInstruction;
             },
+            .UPVALUE_GET => {
+                if (self.call_stack_top == 0) {
+                    try self.runtimeError("Upvalues can only be used inside closures", .{});
+                    return Error.RuntimeError;
+                }
+
+                const stack_stop = self.call_stack[self.call_stack_top - 1];
+                if (stack_stop.closure == null) {
+                    try self.runtimeError("Upvalues can only be used inside closures", .{});
+                    return Error.RuntimeError;
+                }
+
+                const c = stack_stop.closure.?;
+                if (c != .closure) {
+                    try self.runtimeError("How is this possible", .{});
+                    return Error.RuntimeError;
+                }
+
+                const idx = self.readByte();
+                const value = try c.closure.upvalueAt(idx);
+                try self.push(value);
+            },
+            .UPVALUE_SET => {
+                if (self.call_stack_top == 0) {
+                    try self.runtimeError("Upvalues can only be used inside closures", .{});
+                    return Error.RuntimeError;
+                }
+
+                const stack_stop = self.call_stack[self.call_stack_top - 1];
+                if (stack_stop.closure == null) {
+                    try self.runtimeError("Upvalues can only be used inside closures", .{});
+                    return Error.RuntimeError;
+                }
+
+                const c = stack_stop.closure.?;
+                if (c != .closure) {
+                    try self.runtimeError("How is this possible", .{});
+                    return Error.RuntimeError;
+                }
+
+                const idx = self.readByte();
+                const value = self.peek(0);
+                try self.gc.countUp(value);
+                const old = try c.closure.setUpvalueAt(idx, value);
+                self.gc.countDown(old);
+            },
+            .CLOSURE_START => try self.closure(),
             .RETURN => self.returnFromFunction(),
             .CALL => try self.call(self.readByte()),
             .POP => _ = self.pop(),
@@ -280,12 +324,12 @@ fn run(self: *VM) !void {
                 const idx = self.readByte();
                 try self.push(self.localAt(idx));
             },
-            .LOCAL_SET => {
+            .LOCAL_DEFINE => {
                 const value = self.peek(0);
                 try self.pushLocal(value);
                 _ = self.pop();
             },
-            .LOCAL_SET_AT => {
+            .LOCAL_SET => {
                 const idx = self.readByte();
                 const old = self.localAt(idx);
                 try self.setLocalAt(idx, self.peek(0));
@@ -402,12 +446,74 @@ fn comparisonOp(self: *VM, op: Instruction) !void {
     try self.push(.{ .boolean = result });
 }
 
+fn closure(self: *VM) !void {
+    const arg_count = self.readByte();
+
+    var closures: usize = 1;
+    var reading_upvalues = true;
+    var upvalues: std.ArrayList(Value) = .init(self.gc.alloc);
+    defer upvalues.deinit();
+
+    var start_instruction: ?usize = null;
+    var idx = self.ip;
+    while (idx < self.code.len) {
+        const code = self.code[idx];
+        const instruction: Instruction = @enumFromInt(code);
+        switch (instruction) {
+            .CLOSURE_START => {
+                closures += 1;
+                idx += 2;
+            },
+            .CLOSURE_END => {
+                idx += 1;
+                if (closures == 1) {
+                    break;
+                }
+                closures -= 1;
+            },
+            .UPVALUE_DONE => {
+                if (closures == 1) {
+                    reading_upvalues = false;
+                    start_instruction = idx + 1;
+                }
+                idx += 1;
+            },
+            .UPVALUE_DEFINE => {
+                if (reading_upvalues) {
+                    const local = self.code[idx + 1];
+                    const value = self.localAt(local);
+                    try self.gc.countUp(value);
+                    try upvalues.append(value);
+                }
+                idx += 2;
+            },
+            .JUMP, .JUMP_IF_TRUE, .JUMP_IF_FALSE, .JUMP_BACK => idx += 3,
+            .UPVALUE_SET, .UPVALUE_GET, .CALL, .LOCAL_GET, .LOCAL_SET, .GLOBAL_GET, .GLOBAL_SET, .GLOBAL_DEFINE, .CONSTANT => idx += 2,
+            .LOCAL_DEFINE, .LOCAL_POP, .RETURN, .NIL, .TRUE, .FALSE, .NOT, .NEGATE, .ADD, .SUB, .MUL, .DIV, .POP, .PRINT, .EQUAL, .NOT_EQUAL, .LESS, .LESS_EQUAL, .GREATER, .GREATER_EQUAL => idx += 1,
+            .NUMBER, .STRING, .CONSTANTS_DONE, .FUNCTION_START, .FUNCTIONS_DONE => return Error.UnexpectedInstruction,
+        }
+    }
+    // TODO: Check for complete closure definition
+    const upvalues_raw = try upvalues.toOwnedSlice();
+    errdefer self.gc.alloc.free(upvalues_raw);
+
+    if (start_instruction == null) {
+        try self.runtimeError("Closure incomplete smh", .{});
+        return Error.RuntimeError;
+    }
+    const closure_obj = try Value.Closure.new(self.gc.alloc, upvalues_raw, arg_count, start_instruction.?);
+    try self.push(closure_obj);
+
+    self.ip = idx;
+}
+
 fn call(self: *VM, arg_count: u8) !void {
     const callee = self.pop();
 
     switch (callee) {
         .native => try self.nativeCall(callee.native, arg_count),
         .function => try self.functionCall(callee.function, arg_count),
+        .closure => try self.closureCall(callee, arg_count),
         else => try self.runtimeError("Can only call functions. '{}' is not callable", .{callee}),
     }
 }
@@ -436,14 +542,36 @@ fn functionCall(self: *VM, callee: Value.Function, arg_count: u8) !void {
         _ = self.pop();
     }
 
-    self.call_stack[self.call_stack_top] = .{ .return_addr = self.ip };
+    self.call_stack[self.call_stack_top] = .{ .return_addr = self.ip, .closure = null };
     self.call_stack_top += 1;
     self.ip = callee.start_instruction;
+}
+
+fn closureCall(self: *VM, callee: Value, arg_count: u8) !void {
+    if (callee.closure.arity != arg_count) {
+        try self.runtimeError("Closure call expects {d} arguments, got {d}", .{ callee.closure.arity, arg_count });
+        return;
+    }
+
+    for (0..arg_count) |i| {
+        try self.pushLocal(self.peek(arg_count - 1 - i));
+    }
+    for (0..arg_count) |_| {
+        _ = self.pop();
+    }
+
+    try self.gc.countUp(callee);
+    self.call_stack[self.call_stack_top] = .{ .return_addr = self.ip, .closure = callee };
+    self.call_stack_top += 1;
+    self.ip = callee.closure.start_instruction;
 }
 
 fn returnFromFunction(self: *VM) void {
     self.call_stack_top -= 1;
     const ret_addr = self.call_stack[self.call_stack_top].return_addr;
+    if (self.call_stack[self.call_stack_top].closure) |clo| {
+        self.gc.countDown(clo);
+    }
     self.ip = ret_addr;
 }
 

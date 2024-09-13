@@ -12,13 +12,7 @@ pub const Value = union(enum) {
     string: *String,
     native: Native,
     function: Function,
-
-    pub fn destroy(self: Value, gc: *GC) void {
-        switch (self) {
-            .number, .boolean, .nil, .native, .function => {},
-            .string => gc.alloc.destroy(self.string),
-        }
-    }
+    closure: *Closure,
 
     pub fn typeName(value: Value) []const u8 {
         return switch (value) {
@@ -28,6 +22,7 @@ pub const Value = union(enum) {
             .boolean => "boolean",
             .native => "<native fn>",
             .function => "<fn>",
+            .closure => "<closure>",
         };
     }
 
@@ -47,6 +42,7 @@ pub const Value = union(enum) {
             },
             .native => this.native.func == that.native.func,
             .function => this.function.start_instruction == that.function.start_instruction,
+            .closure => this.closure == that.closure,
         };
     }
 
@@ -65,6 +61,7 @@ pub const Value = union(enum) {
             .string => try writer.print("{s}", .{value.string.value}),
             .native => try writer.writeAll("<native fn>"),
             .function => try writer.writeAll("<fn>"),
+            .closure => try writer.writeAll("<closure>"),
         }
     }
 
@@ -94,5 +91,38 @@ pub const Value = union(enum) {
     pub const Function = struct {
         arity: u8,
         start_instruction: usize,
+    };
+
+    pub const Closure = struct {
+        arity: u8,
+        upvalues: []Value,
+        start_instruction: usize,
+
+        const Error = error{NoUpvalueFound};
+
+        pub fn upvalueAt(self: *Closure, idx: u8) Error!Value {
+            if (idx >= self.upvalues.len) {
+                return Error.NoUpvalueFound;
+            }
+
+            return self.upvalues[idx];
+        }
+
+        /// Sets value at the given index, returns previous value at that location
+        pub fn setUpvalueAt(self: *Closure, idx: u8, new_val: Value) Error!Value {
+            const old = try self.upvalueAt(idx);
+            self.upvalues[idx] = new_val;
+            return old;
+        }
+
+        pub fn new(alloc: Allocator, upvalues: []Value, arity: u8, start_instruction: usize) !Value {
+            const obj = try alloc.create(Closure);
+            obj.* = .{
+                .upvalues = upvalues,
+                .arity = arity,
+                .start_instruction = start_instruction,
+            };
+            return .{ .closure = obj };
+        }
     };
 };
