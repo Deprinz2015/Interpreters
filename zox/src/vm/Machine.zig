@@ -181,6 +181,7 @@ fn loadConstants(self: *VM) !void {
 
 fn registerNatives(self: *VM) !void {
     try self.globals.put("time", .{ .native = .{ .func = &natives.time } });
+    try self.globals.put("int", .{ .native = .{ .func = &natives.int } });
 }
 
 fn run(self: *VM) !void {
